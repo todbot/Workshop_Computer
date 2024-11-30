@@ -2,7 +2,7 @@
 
 Dev material for the Music Thing Modular Computer, part of the Workshop System  
 
-
+ 
 ### Important: Revisions of the Computer Hardware
 Check the back of your Computer PCB to see what revision you have. 
 
