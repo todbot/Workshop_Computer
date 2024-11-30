@@ -1,0 +1,3111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&display=swap" rel="stylesheet">
+	<script src="https://cdn.jsdelivr.net/npm/webmidi@latest/dist/iife/webmidi.iife.min.js"></script>
+
+	<script lang="javascript">
+
+
+sentence_visibility = []
+function ShowSpan(idstr,select,val)
+{
+    document.getElementById(idstr).style.display=(select.value==val)?"inline-block":"none";
+}
+function ShowSentence(visgroup,select,val)
+{
+    if (select.value == val)
+    {
+         sentence_visibility[visgroup] = true;
+    }
+}
+function ResizeSelect(selectId)
+{
+    if (selectId.selectedIndex<0)
+    {
+        return;
+    }
+    var selectedText = selectId.options[selectId.selectedIndex].text;
+	selectId.style.width = 0 + (selectedText.length * 12.35) + "px";
+}
+
+window.addEventListener('DOMContentLoaded',function () {
+
+    ResetVis()
+    var selects = document.getElementsByTagName("select");
+    for (var i=0; i<selects.length; i++)
+    {
+        AdjustSpans(selects[i]);
+        selects[i].setAttribute("onchange", "OngoingSelectChange(this)");
+    }
+    SetVis();
+});
+
+function OngoingSelectChange(e)
+{
+    ResetVis();
+    var selects = document.getElementsByTagName("select");
+    for (var i=0; i<selects.length; i++)
+    {
+        AdjustSpans(selects[i]);
+    }
+    SetVis();
+    //AdjustSpans(e);
+    OnSelectChange(e);
+}
+const SYSEX_INDEX_MANUFACTURER = 1;
+const SYSEX_INDEX_COMMAND = 2;
+const SYSEX_INDEX_LENGTH = 3;
+const SYSEX_MANUFACTURER_DEV = 125;
+const SYSEX_COMMAND_PREVIEW = 1;
+const SYSEX_COMMAND_WRITE_FLASH = 2;
+const SYSEX_COMMAND_READ = 3;
+const SYSEX_COMMAND_READ_CARD_RELEASE = 4;
+const SYSEX_CONFIGURED_MARKER = 87;
+const SYSEX_CONFIGURED_MARKER_INDEX = 41;
+const CARD_ID_LOW = 20;
+const CARD_ID_HIGH = 0;
+const CARD_VER_MAJOR = 0;
+const CARD_VER_MINOR = 3;
+ 
+function AdjustSpans(e)
+{
+    ResizeSelect(e);
+    switch(e.id)
+    {
+    case 'select_0':
+        ShowSpan("span_0",e,0); ShowSpan("span_1",e,1); ShowSpan("span_2",e,2); ShowSpan("span_3",e,5); break;
+    case 'select_5':
+        ShowSpan("span_4",e,0); ShowSpan("span_5",e,1); ShowSpan("span_6",e,2); ShowSpan("span_7",e,5); break;
+    case 'select_10':
+        ShowSpan("span_8",e,0); ShowSpan("span_9",e,1); ShowSpan("span_10",e,2); ShowSpan("span_11",e,5); break;
+    case 'select_15':
+        ShowSpan("span_12",e,0); ShowSentence("clkA", e, 1); ShowSpan("span_13",e,1); ShowSentence("clkB", e, 2); ShowSpan("span_14",e,2); ShowSpan("span_15",e,3); ShowSpan("span_16",e,4); ShowSentence("tm", e, 5); ShowSentence("bg", e, 6); ShowSentence("bg", e, 7); break;
+    case 'select_22':
+        ShowSpan("span_17",e,0); ShowSentence("clkA", e, 1); ShowSpan("span_18",e,1); ShowSentence("clkB", e, 2); ShowSpan("span_19",e,2); ShowSpan("span_20",e,3); ShowSpan("span_21",e,4); ShowSentence("tm", e, 5); ShowSentence("bg", e, 6); ShowSentence("bg", e, 7); break;
+    case 'select_29':
+        ShowSpan("span_22",e,0); ShowSentence("clkA", e, 1); ShowSpan("span_23",e,1); ShowSentence("clkB", e, 2); ShowSpan("span_24",e,2); ShowSpan("span_25",e,3); ShowSpan("span_26",e,4); ShowSentence("tm", e, 5); ShowSpan("span_27",e,6); ShowSpan("span_28",e,7); break;
+    case 'select_39':
+        ShowSpan("span_29",e,0); ShowSentence("clkA", e, 1); ShowSpan("span_30",e,1); ShowSentence("clkB", e, 2); ShowSpan("span_31",e,2); ShowSpan("span_32",e,3); ShowSpan("span_33",e,4); ShowSentence("tm", e, 5); ShowSpan("span_34",e,6); ShowSpan("span_35",e,7); break;
+    case 'select_49':
+        ShowSpan("span_36",e,0); ShowSpan("span_37",e,1); ShowSpan("span_38",e,2); ShowSpan("span_39",e,5); break;
+    case 'select_57':
+        ShowSpan("span_40",e,0); ShowSpan("span_41",e,1); ShowSpan("span_42",e,2); ShowSpan("span_43",e,5); break;
+    case 'select_65':
+        ShowSpan("span_44",e,0); ShowSentence("clkA", e, 1); ShowSpan("span_45",e,1); ShowSentence("clkB", e, 2); ShowSpan("span_46",e,2); ShowSpan("span_47",e,3); ShowSpan("span_48",e,4); break;
+    case 'select_73':
+        ShowSpan("span_49",e,0); ShowSpan("span_50",e,1); ShowSpan("span_51",e,2); ShowSpan("span_52",e,5); break;
+    case 'select_78':
+        ShowSpan("span_53",e,0); ShowSentence("clkA", e, 1); ShowSpan("span_54",e,1); ShowSentence("clkB", e, 2); ShowSpan("span_55",e,2); ShowSpan("span_56",e,3); ShowSpan("span_57",e,4); break;
+    case 'select_87':
+        ShowSpan("span_58",e,0); ShowSpan("span_59",e,1); ShowSpan("span_60",e,2); ShowSpan("span_61",e,5); break;
+    }
+    //SetVis();
+
+}
+function ResetVis()
+{
+    sentence_visibility["clkA"]=false;
+    sentence_visibility["clkB"]=false;
+    sentence_visibility["tm"]=false;
+    sentence_visibility["bg"]=false;
+}
+
+function SetVis()
+{
+    l=document.getElementsByClassName('visgroup_clkA');
+    for (var i = 0; i<l.length; i++) {l[i].style.display=(sentence_visibility['clkA'])?"block":"none";}
+    l=document.getElementsByClassName('visgroup_clkB');
+    for (var i = 0; i<l.length; i++) {l[i].style.display=(sentence_visibility['clkB'])?"block":"none";}
+    l=document.getElementsByClassName('visgroup_tm');
+    for (var i = 0; i<l.length; i++) {l[i].style.display=(sentence_visibility['tm'])?"block":"none";}
+    l=document.getElementsByClassName('visgroup_bg');
+    for (var i = 0; i<l.length; i++) {l[i].style.display=(sentence_visibility['bg'])?"block":"none";}
+}
+
+	function SetButtonDisabled(state)
+{
+	var buttons = document.getElementsByTagName("button");
+	for (var i=0; i<buttons.length; i++)
+    {
+		buttons[i].disabled = state;
+	}
+}
+
+window.addEventListener('DOMContentLoaded',function () {
+	
+	if (window.isSecureContext && typeof navigator.requestMIDIAccess === 'function')
+	{
+		// Enable WEBMIDI.js and trigger the onEnabled() function when ready
+		WebMidi.enable({sysex: true}).then(ConnectToComputer).catch(err => alert(err));
+	}
+	else
+	{
+
+		document.getElementById("messages").innerHTML =
+			'Could not access web MIDI - not supported or insecure context';
+		SetButtonDisabled(true);
+
+	}
+});
+
+
+var outpt;
+var inpt;
+
+
+function OnSelectChange(e)
+{
+	var rsed = GetSysExFromDOM();
+	var sed = [SYSEX_COMMAND_PREVIEW, rsed.length].concat(rsed);
+	if (outpt != undefined)
+	{
+		outpt.sendSysex(SYSEX_MANUFACTURER_DEV, sed);
+	}
+}
+
+async function ConnectToComputer()
+{
+	var connectedOut = false, connectedIn=false;
+
+	if (WebMidi != undefined)
+	{
+		WebMidi.outputs.forEach((device, index) =>
+			{
+				console.log(`Output[${index}]: ${device.name}`);
+				if (device.name.indexOf('MTMComputer') != -1)
+				{
+					outpt = WebMidi.outputs[index];
+					connectedOut = true;
+				}
+			});
+
+		WebMidi.inputs.forEach((device, index) =>
+			{
+				console.log(`Input[${index}]: ${device.name}`);
+				if (device.name.indexOf('MTMComputer') != -1)
+				{
+					inpt = WebMidi.inputs[index];
+					connectedIn = true;
+				}
+			});
+
+		var connected = connectedOut && connectedIn;
+		
+		if (connected)
+		{
+			releaseVersion = await ReadReleaseFromComputer();
+			if (releaseVersion != undefined)
+			{
+				
+				if (releaseVersion[0] == CARD_ID_LOW && releaseVersion[1] == CARD_ID_HIGH)
+				{
+					if (releaseVersion[2] == CARD_VER_MAJOR)
+					{
+						document.getElementById("messages").innerHTML = '';
+						SetButtonDisabled(false);
+						ReadFromComputer();
+					}
+					else
+					{
+						document.getElementById("messages").innerHTML = 'Found card, but incompatible version';
+						SetButtonDisabled(true);
+					}
+					
+				}
+				else
+				{
+					document.getElementById("messages").innerHTML = 'Found Computer, but wrong card';
+					SetButtonDisabled(true);
+				}
+			}
+			else
+			{
+				document.getElementById("messages").innerHTML = 'Failed to received card id/version';
+				SetButtonDisabled(true);
+			}
+		}
+		else
+		{
+			document.getElementById("messages").innerHTML = 'Could not connect to Computer';
+			SetButtonDisabled(true);
+		}
+	}
+	else
+	{
+		document.getElementById("messages").innerHTML = 'Could not access web MIDI - unknown reason';
+		SetButtonDisabled(true);
+	}
+
+	WebMidi.addListener("connected",ConnectToComputer);
+	WebMidi.addListener("disconnected",ConnectToComputer);
+	WebMidi.addListener("portschanged",ConnectToComputer);
+}
+
+var versionFromDevice;
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function SendToComputer()
+{
+	var rsed = GetSysExFromDOM();
+	var sed = [SYSEX_COMMAND_WRITE_FLASH, rsed.length].concat(rsed);
+	console.log(sed);
+	outpt.sendSysex(SYSEX_MANUFACTURER_DEV, sed);
+}
+function ReadFromComputer()
+{
+	// Prepare a listener for what the Computer will send
+	var receivedData = Array();
+	inpt.addOneTimeListener("sysex", e => {
+		if (e.message.dataBytes[0]==SYSEX_COMMAND_READ)
+		{
+			//console.log(e);
+			var receivedConfig = e.message.dataBytes.slice(2);
+			console.log(receivedConfig);
+			SetDOMFromSysEx(receivedConfig);
+		}
+	});
+
+	// Send request for data
+	outpt.sendSysex(SYSEX_MANUFACTURER_DEV, [SYSEX_COMMAND_READ]);
+}
+async function ReadReleaseFromComputer()
+{
+	versionFromDevice=undefined;
+	// Prepare a listener for what the Computer will send
+	var receivedData = Array();
+	inpt.addOneTimeListener("sysex", e => {
+		if (e.message.dataBytes[0]==SYSEX_COMMAND_READ_CARD_RELEASE)
+		{
+			var receivedConfig = e.message.dataBytes.slice(2);
+			versionFromDevice = receivedConfig;
+		}
+	});
+
+	// Send request for data
+	outpt.sendSysex(SYSEX_MANUFACTURER_DEV, [SYSEX_COMMAND_READ_CARD_RELEASE]);
+
+	// Wait 100ms, should be plenty to allow data to be recieved
+	await sleep(100);
+	return versionFromDevice;
+}
+
+function SetDOMFromSysEx(receivedConfig)
+{
+	ResetVis();	  
+	// Get SysEx data string from state of <select> tags.
+	var sents = document.getElementsByClassName("sentence");
+	for (var j=0; j<sents.length; j++)
+	{
+		var offset = sents[j].getAttribute("data-offset");
+		var selects = sents[j].getElementsByTagName("select");
+		for (var i=0; i<selects.length; i++)
+		{
+			if (window.getComputedStyle(selects[i].parentElement).getPropertyValue('display') != 'none')
+			{
+				selects[i].value = receivedConfig[offset];
+				AdjustSpans(selects[i]);
+				offset++;
+			}
+		}
+		SetVis(); // turn on any new sentences enabled by config so far
+	}
+}
+
+function GetSysExFromDOM()
+{
+	// Get SysEx data string from state of <select> tags.
+    var cd = document.getElementById("sentence_container");
+    var numbytes = cd.getAttribute("data-size");
+
+    var sysEx = new Array(numbytes)
+    for (var j=0; j<numbytes; j++)
+        sysEx[j]=0x7F;
+	sysEx[numbytes-1] = SYSEX_CONFIGURED_MARKER;
+	
+    var sents = document.getElementsByClassName("sentence");
+    for (var j=0; j<sents.length; j++)
+    {
+        var offset = sents[j].getAttribute("data-offset");
+        var selects = sents[j].getElementsByTagName("select");
+        for (var i=0; i<selects.length; i++)
+        {
+            if (window.getComputedStyle(selects[i].parentElement).getPropertyValue('display') != 'none')
+            {
+				if (selects[i].selectedIndex >= 0)
+				{
+					sysEx[offset]=Number(selects[i].options[selects[i].selectedIndex].value);
+				}
+				else
+				{
+					sysEx[offset]=127;
+				}
+                offset++;
+            }
+        }
+    }
+    return sysEx;
+}
+
+function DefaultConfigString()
+{
+	var sysEx = GetSysExFromDOM();
+	var str = 'uint8_t defaultConfig[] = {';
+	for (var j=0; j<sysEx.length; j++)
+		str+=sysEx[j]+', ';
+	str+='SYSEX_CONFIGURED_MARKER};'
+	return str;
+}
+
+</script>
+	<style>
+	  body
+	  {
+	  font-family: "Fragment Mono", monospace;
+	  font-weight: 400;
+	  font-style: normal;
+	  font-size:20px;
+	  background-color: white;
+	  }
+	  #content
+	  {
+		  margin: 0px auto;
+	  }
+	  #messages
+	  {
+		  font-size:16px;
+		  font-style:italic;
+		  color: #A0A0A0;
+		  margin:20px;
+	  }
+	  h1 {font-weight:normal;}
+	  select
+	  {
+	  font-family: "Fragment Mono", monospace;
+	  font-weight: 400;
+	  font-style: normal;
+	  font-size:20px;
+	  background-color: white;
+	  color: red;
+	  border: none;
+	  padding: 0px;
+	  appearance:none;
+	  border-bottom: red dotted 1px;
+	  }
+
+	  button
+	  {
+	  font-family: "Fragment Mono", monospace;
+	  font-weight: 400;
+	  font-style: normal;
+	  font-size:20px;
+	  background-color: white;
+	  color:  black;
+	  border: 1px solid red;
+	  padding: 10px 20px;
+	  margin:20px;
+	  box-shadow: red 3px 3px 0px;
+	  position: relative; top: 0px; left:0px;
+	  transition: top 0.075s, left 0.075s, box-shadow 0.075s;
+	  }
+
+
+	  button:hover
+	  {
+		  color:red;
+	  }
+	  button:active:not(:disabled)
+	  {
+		  position: relative; top: 2px; left:2px;
+		  box-shadow: red 1px 1px 0px;
+	  }
+	  button:disabled
+	  {
+		  color: #A0A0A0;
+		  box-shadow: none;
+		  border: 1px solid #A0A0A0;
+	  }
+	  button:disabled
+	  {
+		  color: #A0A0A0;
+		  box-shadow: none;
+		  border: 1px solid #A0A0A0;
+	  }
+	  
+	  .jack
+	  {
+		  font-style:italic;
+	  }
+	  .sentence {margin-top: 2em; margin-bottom:2em;}
+#content
+{
+	max-width:900px;
+	margin:0px auto;
+}
+	</style>
+  </head>
+  <body>
+	<div id="content">
+	  <h1>20: Reverb</h1>
+	  
+	 <div data-size="42" id="sentence_container">
+  <div class="sentence" data-offset="0">
+    Reverb wet/dry is set by 
+    <select id="select_0">
+      <option value="0">Main Knob</option>
+      <option value="1">Knob X</option>
+      <option value="2">Knob Y</option>
+      <option value="3">CV in 1</option>
+      <option value="4">CV in 2</option>
+      <option value="5">a constant</option>
+    </select>
+    <span id="span_0">
+      <select id="select_1">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_1">
+      <select id="select_2">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_2">
+      <select id="select_3">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_3">
+      value of 
+      <select id="select_4">
+        <option value="0">0%</option>
+        <option value="1">1%</option>
+        <option value="2">2%</option>
+        <option value="3">3%</option>
+        <option value="4">4%</option>
+        <option value="5">5%</option>
+        <option value="6">6%</option>
+        <option value="7">7%</option>
+        <option value="8">8%</option>
+        <option value="9">9%</option>
+        <option value="10">10%</option>
+        <option value="11">11%</option>
+        <option value="12">12%</option>
+        <option value="13">13%</option>
+        <option value="14">14%</option>
+        <option value="15">15%</option>
+        <option value="16">16%</option>
+        <option value="17">17%</option>
+        <option value="18">18%</option>
+        <option value="19">19%</option>
+        <option value="20">20%</option>
+        <option value="21">21%</option>
+        <option value="22">22%</option>
+        <option value="23">23%</option>
+        <option value="24">24%</option>
+        <option value="25">25%</option>
+        <option value="26">26%</option>
+        <option value="27">27%</option>
+        <option value="28">28%</option>
+        <option value="29">29%</option>
+        <option value="30">30%</option>
+        <option value="31">31%</option>
+        <option value="32">32%</option>
+        <option value="33">33%</option>
+        <option value="34">34%</option>
+        <option value="35">35%</option>
+        <option value="36">36%</option>
+        <option value="37">37%</option>
+        <option value="38">38%</option>
+        <option value="39">39%</option>
+        <option value="40">40%</option>
+        <option value="41">41%</option>
+        <option value="42">42%</option>
+        <option value="43">43%</option>
+        <option value="44">44%</option>
+        <option value="45">45%</option>
+        <option value="46">46%</option>
+        <option value="47">47%</option>
+        <option value="48">48%</option>
+        <option value="49">49%</option>
+        <option value="50">50%</option>
+        <option value="51">51%</option>
+        <option value="52">52%</option>
+        <option value="53">53%</option>
+        <option value="54">54%</option>
+        <option value="55">55%</option>
+        <option value="56">56%</option>
+        <option value="57">57%</option>
+        <option value="58">58%</option>
+        <option value="59">59%</option>
+        <option value="60">60%</option>
+        <option value="61">61%</option>
+        <option value="62">62%</option>
+        <option value="63">63%</option>
+        <option value="64">64%</option>
+        <option value="65">65%</option>
+        <option value="66">66%</option>
+        <option value="67">67%</option>
+        <option value="68">68%</option>
+        <option value="69">69%</option>
+        <option value="70">70%</option>
+        <option value="71">71%</option>
+        <option value="72">72%</option>
+        <option value="73">73%</option>
+        <option value="74">74%</option>
+        <option value="75">75%</option>
+        <option value="76">76%</option>
+        <option value="77">77%</option>
+        <option value="78">78%</option>
+        <option value="79">79%</option>
+        <option value="80">80%</option>
+        <option value="81">81%</option>
+        <option value="82">82%</option>
+        <option value="83">83%</option>
+        <option value="84">84%</option>
+        <option value="85">85%</option>
+        <option value="86">86%</option>
+        <option value="87">87%</option>
+        <option value="88">88%</option>
+        <option value="89">89%</option>
+        <option value="90">90%</option>
+        <option value="91">91%</option>
+        <option value="92">92%</option>
+        <option value="93">93%</option>
+        <option value="94">94%</option>
+        <option value="95">95%</option>
+        <option value="96">96%</option>
+        <option value="97">97%</option>
+        <option value="98">98%</option>
+        <option value="99">99%</option>
+        <option value="100">100%</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence" data-offset="2">
+    Reverb decay is set by 
+    <select id="select_5">
+      <option value="0">Main Knob</option>
+      <option value="1">Knob X</option>
+      <option value="2">Knob Y</option>
+      <option value="3">CV in 1</option>
+      <option value="4">CV in 2</option>
+      <option value="5">a constant</option>
+    </select>
+    <span id="span_4">
+      <select id="select_6">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_5">
+      <select id="select_7">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_6">
+      <select id="select_8">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_7">
+      value of 
+      <select id="select_9">
+        <option value="0">0%</option>
+        <option value="1">1%</option>
+        <option value="2">2%</option>
+        <option value="3">3%</option>
+        <option value="4">4%</option>
+        <option value="5">5%</option>
+        <option value="6">6%</option>
+        <option value="7">7%</option>
+        <option value="8">8%</option>
+        <option value="9">9%</option>
+        <option value="10">10%</option>
+        <option value="11">11%</option>
+        <option value="12">12%</option>
+        <option value="13">13%</option>
+        <option value="14">14%</option>
+        <option value="15">15%</option>
+        <option value="16">16%</option>
+        <option value="17">17%</option>
+        <option value="18">18%</option>
+        <option value="19">19%</option>
+        <option value="20">20%</option>
+        <option value="21">21%</option>
+        <option value="22">22%</option>
+        <option value="23">23%</option>
+        <option value="24">24%</option>
+        <option value="25">25%</option>
+        <option value="26">26%</option>
+        <option value="27">27%</option>
+        <option value="28">28%</option>
+        <option value="29">29%</option>
+        <option value="30">30%</option>
+        <option value="31">31%</option>
+        <option value="32">32%</option>
+        <option value="33">33%</option>
+        <option value="34">34%</option>
+        <option value="35">35%</option>
+        <option value="36">36%</option>
+        <option value="37">37%</option>
+        <option value="38">38%</option>
+        <option value="39">39%</option>
+        <option value="40">40%</option>
+        <option value="41">41%</option>
+        <option value="42">42%</option>
+        <option value="43">43%</option>
+        <option value="44">44%</option>
+        <option value="45">45%</option>
+        <option value="46">46%</option>
+        <option value="47">47%</option>
+        <option value="48">48%</option>
+        <option value="49">49%</option>
+        <option value="50">50%</option>
+        <option value="51">51%</option>
+        <option value="52">52%</option>
+        <option value="53">53%</option>
+        <option value="54">54%</option>
+        <option value="55">55%</option>
+        <option value="56">56%</option>
+        <option value="57">57%</option>
+        <option value="58">58%</option>
+        <option value="59">59%</option>
+        <option value="60">60%</option>
+        <option value="61">61%</option>
+        <option value="62">62%</option>
+        <option value="63">63%</option>
+        <option value="64">64%</option>
+        <option value="65">65%</option>
+        <option value="66">66%</option>
+        <option value="67">67%</option>
+        <option value="68">68%</option>
+        <option value="69">69%</option>
+        <option value="70">70%</option>
+        <option value="71">71%</option>
+        <option value="72">72%</option>
+        <option value="73">73%</option>
+        <option value="74">74%</option>
+        <option value="75">75%</option>
+        <option value="76">76%</option>
+        <option value="77">77%</option>
+        <option value="78">78%</option>
+        <option value="79">79%</option>
+        <option value="80">80%</option>
+        <option value="81">81%</option>
+        <option value="82">82%</option>
+        <option value="83">83%</option>
+        <option value="84">84%</option>
+        <option value="85">85%</option>
+        <option value="86">86%</option>
+        <option value="87">87%</option>
+        <option value="88">88%</option>
+        <option value="89">89%</option>
+        <option value="90">90%</option>
+        <option value="91">91%</option>
+        <option value="92">92%</option>
+        <option value="93">93%</option>
+        <option value="94">94%</option>
+        <option value="95">95%</option>
+        <option value="96">96%</option>
+        <option value="97">97%</option>
+        <option value="98">98%</option>
+        <option value="99">99%</option>
+        <option value="100">100%</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence" data-offset="4">
+    Reverb tone is set by 
+    <select id="select_10">
+      <option value="0">Main Knob</option>
+      <option value="1">Knob X</option>
+      <option value="2">Knob Y</option>
+      <option value="3">CV in 1</option>
+      <option value="4">CV in 2</option>
+      <option value="5">a constant</option>
+    </select>
+    <span id="span_8">
+      <select id="select_11">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_9">
+      <select id="select_12">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_10">
+      <select id="select_13">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_11">
+      value of 
+      <select id="select_14">
+        <option value="0">0%</option>
+        <option value="1">1%</option>
+        <option value="2">2%</option>
+        <option value="3">3%</option>
+        <option value="4">4%</option>
+        <option value="5">5%</option>
+        <option value="6">6%</option>
+        <option value="7">7%</option>
+        <option value="8">8%</option>
+        <option value="9">9%</option>
+        <option value="10">10%</option>
+        <option value="11">11%</option>
+        <option value="12">12%</option>
+        <option value="13">13%</option>
+        <option value="14">14%</option>
+        <option value="15">15%</option>
+        <option value="16">16%</option>
+        <option value="17">17%</option>
+        <option value="18">18%</option>
+        <option value="19">19%</option>
+        <option value="20">20%</option>
+        <option value="21">21%</option>
+        <option value="22">22%</option>
+        <option value="23">23%</option>
+        <option value="24">24%</option>
+        <option value="25">25%</option>
+        <option value="26">26%</option>
+        <option value="27">27%</option>
+        <option value="28">28%</option>
+        <option value="29">29%</option>
+        <option value="30">30%</option>
+        <option value="31">31%</option>
+        <option value="32">32%</option>
+        <option value="33">33%</option>
+        <option value="34">34%</option>
+        <option value="35">35%</option>
+        <option value="36">36%</option>
+        <option value="37">37%</option>
+        <option value="38">38%</option>
+        <option value="39">39%</option>
+        <option value="40">40%</option>
+        <option value="41">41%</option>
+        <option value="42">42%</option>
+        <option value="43">43%</option>
+        <option value="44">44%</option>
+        <option value="45">45%</option>
+        <option value="46">46%</option>
+        <option value="47">47%</option>
+        <option value="48">48%</option>
+        <option value="49">49%</option>
+        <option value="50">50%</option>
+        <option value="51">51%</option>
+        <option value="52">52%</option>
+        <option value="53">53%</option>
+        <option value="54">54%</option>
+        <option value="55">55%</option>
+        <option value="56">56%</option>
+        <option value="57">57%</option>
+        <option value="58">58%</option>
+        <option value="59">59%</option>
+        <option value="60">60%</option>
+        <option value="61">61%</option>
+        <option value="62">62%</option>
+        <option value="63">63%</option>
+        <option value="64">64%</option>
+        <option value="65">65%</option>
+        <option value="66">66%</option>
+        <option value="67">67%</option>
+        <option value="68">68%</option>
+        <option value="69">69%</option>
+        <option value="70">70%</option>
+        <option value="71">71%</option>
+        <option value="72">72%</option>
+        <option value="73">73%</option>
+        <option value="74">74%</option>
+        <option value="75">75%</option>
+        <option value="76">76%</option>
+        <option value="77">77%</option>
+        <option value="78">78%</option>
+        <option value="79">79%</option>
+        <option value="80">80%</option>
+        <option value="81">81%</option>
+        <option value="82">82%</option>
+        <option value="83">83%</option>
+        <option value="84">84%</option>
+        <option value="85">85%</option>
+        <option value="86">86%</option>
+        <option value="87">87%</option>
+        <option value="88">88%</option>
+        <option value="89">89%</option>
+        <option value="90">90%</option>
+        <option value="91">91%</option>
+        <option value="92">92%</option>
+        <option value="93">93%</option>
+        <option value="94">94%</option>
+        <option value="95">95%</option>
+        <option value="96">96%</option>
+        <option value="97">97%</option>
+        <option value="98">98%</option>
+        <option value="99">99%</option>
+        <option value="100">100%</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence" data-offset="6">
+    Pulse out 1 is 
+    <select id="select_15">
+      <option value="0">gate of</option>
+      <option value="1">internal clock A</option>
+      <option value="2">internal clock B</option>
+      <option value="3">Pulse in 1</option>
+      <option value="4">Pulse in 2</option>
+      <option value="5">Turing machine pulse out</option>
+      <option value="6">Bernoulli gate out A</option>
+      <option value="7">Bernoulli gate out B</option>
+    </select>
+    <span id="span_12">
+      <select id="select_16">
+        <option value="0">any MIDI note</option>
+        <option value="1">note 0 (C-1)</option>
+        <option value="2">note 1 (C#-1)</option>
+        <option value="3">note 2 (D-1)</option>
+        <option value="4">note 3 (Eb-1)</option>
+        <option value="5">note 4 (E-1)</option>
+        <option value="6">note 5 (F-1)</option>
+        <option value="7">note 6 (F#-1)</option>
+        <option value="8">note 7 (G-1)</option>
+        <option value="9">note 8 (Ab-1)</option>
+        <option value="10">note 9 (A-1)</option>
+        <option value="11">note 10 (Bb-1)</option>
+        <option value="12">note 11 (B-1)</option>
+        <option value="13">note 12 (C0)</option>
+        <option value="14">note 13 (C#0)</option>
+        <option value="15">note 14 (D0)</option>
+        <option value="16">note 15 (Eb0)</option>
+        <option value="17">note 16 (E0)</option>
+        <option value="18">note 17 (F0)</option>
+        <option value="19">note 18 (F#0)</option>
+        <option value="20">note 19 (G0)</option>
+        <option value="21">note 20 (Ab0)</option>
+        <option value="22">note 21 (A0)</option>
+        <option value="23">note 22 (Bb0)</option>
+        <option value="24">note 23 (B0)</option>
+        <option value="25">note 24 (C1)</option>
+        <option value="26">note 25 (C#1)</option>
+        <option value="27">note 26 (D1)</option>
+        <option value="28">note 27 (Eb1)</option>
+        <option value="29">note 28 (E1)</option>
+        <option value="30">note 29 (F1)</option>
+        <option value="31">note 30 (F#1)</option>
+        <option value="32">note 31 (G1)</option>
+        <option value="33">note 32 (Ab1)</option>
+        <option value="34">note 33 (A1)</option>
+        <option value="35">note 34 (Bb1)</option>
+        <option value="36">note 35 (B1)</option>
+        <option value="37">note 36 (C2)</option>
+        <option value="38">note 37 (C#2)</option>
+        <option value="39">note 38 (D2)</option>
+        <option value="40">note 39 (Eb2)</option>
+        <option value="41">note 40 (E2)</option>
+        <option value="42">note 41 (F2)</option>
+        <option value="43">note 42 (F#2)</option>
+        <option value="44">note 43 (G2)</option>
+        <option value="45">note 44 (Ab2)</option>
+        <option value="46">note 45 (A2)</option>
+        <option value="47">note 46 (Bb2)</option>
+        <option value="48">note 47 (B2)</option>
+        <option value="49">note 48 (C3)</option>
+        <option value="50">note 49 (C#3)</option>
+        <option value="51">note 50 (D3)</option>
+        <option value="52">note 51 (Eb3)</option>
+        <option value="53">note 52 (E3)</option>
+        <option value="54">note 53 (F3)</option>
+        <option value="55">note 54 (F#3)</option>
+        <option value="56">note 55 (G3)</option>
+        <option value="57">note 56 (Ab3)</option>
+        <option value="58">note 57 (A3)</option>
+        <option value="59">note 58 (Bb3)</option>
+        <option value="60">note 59 (B3)</option>
+        <option value="61">note 60 (C4)</option>
+        <option value="62">note 61 (C#4)</option>
+        <option value="63">note 62 (D4)</option>
+        <option value="64">note 63 (Eb4)</option>
+        <option value="65">note 64 (E4)</option>
+        <option value="66">note 65 (F4)</option>
+        <option value="67">note 66 (F#4)</option>
+        <option value="68">note 67 (G4)</option>
+        <option value="69">note 68 (Ab4)</option>
+        <option value="70">note 69 (A4)</option>
+        <option value="71">note 70 (Bb4)</option>
+        <option value="72">note 71 (B4)</option>
+        <option value="73">note 72 (C5)</option>
+        <option value="74">note 73 (C#5)</option>
+        <option value="75">note 74 (D5)</option>
+        <option value="76">note 75 (Eb5)</option>
+        <option value="77">note 76 (E5)</option>
+        <option value="78">note 77 (F5)</option>
+        <option value="79">note 78 (F#5)</option>
+        <option value="80">note 79 (G5)</option>
+        <option value="81">note 80 (Ab5)</option>
+        <option value="82">note 81 (A5)</option>
+        <option value="83">note 82 (Bb5)</option>
+        <option value="84">note 83 (B5)</option>
+        <option value="85">note 84 (C6)</option>
+        <option value="86">note 85 (C#6)</option>
+        <option value="87">note 86 (D6)</option>
+        <option value="88">note 87 (Eb6)</option>
+        <option value="89">note 88 (E6)</option>
+        <option value="90">note 89 (F6)</option>
+        <option value="91">note 90 (F#6)</option>
+        <option value="92">note 91 (G6)</option>
+        <option value="93">note 92 (Ab6)</option>
+        <option value="94">note 93 (A6)</option>
+        <option value="95">note 94 (Bb6)</option>
+        <option value="96">note 95 (B6)</option>
+        <option value="97">note 96 (C7)</option>
+        <option value="98">note 97 (C#7)</option>
+        <option value="99">note 98 (D7)</option>
+        <option value="100">note 99 (Eb7)</option>
+        <option value="101">note 100 (E7)</option>
+        <option value="102">note 101 (F7)</option>
+        <option value="103">note 102 (F#7)</option>
+        <option value="104">note 103 (G7)</option>
+        <option value="105">note 104 (Ab7)</option>
+        <option value="106">note 105 (A7)</option>
+        <option value="107">note 106 (Bb7)</option>
+        <option value="108">note 107 (B7)</option>
+        <option value="109">note 108 (C8)</option>
+        <option value="110">note 109 (C#8)</option>
+        <option value="111">note 110 (D8)</option>
+        <option value="112">note 111 (Eb8)</option>
+        <option value="113">note 112 (E8)</option>
+        <option value="114">note 113 (F8)</option>
+        <option value="115">note 114 (F#8)</option>
+        <option value="116">note 115 (G8)</option>
+        <option value="117">note 116 (Ab8)</option>
+        <option value="118">note 117 (A8)</option>
+        <option value="119">note 118 (Bb8)</option>
+        <option value="120">note 119 (B8)</option>
+        <option value="121">note 120 (C9)</option>
+        <option value="122">note 121 (C#9)</option>
+        <option value="123">note 122 (D9)</option>
+        <option value="124">note 123 (Eb9)</option>
+        <option value="125">note 124 (E9)</option>
+        <option value="126">note 125 (F9)</option>
+        <option value="127">note 126 (F#9)</option>
+      </select>
+       on 
+      <select id="select_17">
+        <option value="0">any MIDI channel</option>
+        <option value="1">channel 1</option>
+        <option value="2">channel 2</option>
+        <option value="3">channel 3</option>
+        <option value="4">channel 4</option>
+        <option value="5">channel 5</option>
+        <option value="6">channel 6</option>
+        <option value="7">channel 7</option>
+        <option value="8">channel 8</option>
+        <option value="9">channel 9</option>
+        <option value="10">channel 10</option>
+        <option value="11">channel 11</option>
+        <option value="12">channel 12</option>
+        <option value="13">channel 13</option>
+        <option value="14">channel 14</option>
+        <option value="15">channel 15</option>
+        <option value="16">channel 16</option>
+      </select>
+    </span>
+    <span id="span_13">
+      <select id="select_18">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_14">
+      <select id="select_19">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_15">
+      <select id="select_20">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_16">
+      <select id="select_21">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence" data-offset="9">
+    Pulse out 2 is 
+    <select id="select_22">
+      <option value="0">gate of</option>
+      <option value="1">internal clock A</option>
+      <option value="2">internal clock B</option>
+      <option value="3">Pulse in 1</option>
+      <option value="4">Pulse in 2</option>
+      <option value="5">Turing machine pulse out</option>
+      <option value="6">Bernoulli gate out A</option>
+      <option value="7">Bernoulli gate out B</option>
+    </select>
+    <span id="span_17">
+      <select id="select_23">
+        <option value="0">any MIDI note</option>
+        <option value="1">note 0 (C-1)</option>
+        <option value="2">note 1 (C#-1)</option>
+        <option value="3">note 2 (D-1)</option>
+        <option value="4">note 3 (Eb-1)</option>
+        <option value="5">note 4 (E-1)</option>
+        <option value="6">note 5 (F-1)</option>
+        <option value="7">note 6 (F#-1)</option>
+        <option value="8">note 7 (G-1)</option>
+        <option value="9">note 8 (Ab-1)</option>
+        <option value="10">note 9 (A-1)</option>
+        <option value="11">note 10 (Bb-1)</option>
+        <option value="12">note 11 (B-1)</option>
+        <option value="13">note 12 (C0)</option>
+        <option value="14">note 13 (C#0)</option>
+        <option value="15">note 14 (D0)</option>
+        <option value="16">note 15 (Eb0)</option>
+        <option value="17">note 16 (E0)</option>
+        <option value="18">note 17 (F0)</option>
+        <option value="19">note 18 (F#0)</option>
+        <option value="20">note 19 (G0)</option>
+        <option value="21">note 20 (Ab0)</option>
+        <option value="22">note 21 (A0)</option>
+        <option value="23">note 22 (Bb0)</option>
+        <option value="24">note 23 (B0)</option>
+        <option value="25">note 24 (C1)</option>
+        <option value="26">note 25 (C#1)</option>
+        <option value="27">note 26 (D1)</option>
+        <option value="28">note 27 (Eb1)</option>
+        <option value="29">note 28 (E1)</option>
+        <option value="30">note 29 (F1)</option>
+        <option value="31">note 30 (F#1)</option>
+        <option value="32">note 31 (G1)</option>
+        <option value="33">note 32 (Ab1)</option>
+        <option value="34">note 33 (A1)</option>
+        <option value="35">note 34 (Bb1)</option>
+        <option value="36">note 35 (B1)</option>
+        <option value="37">note 36 (C2)</option>
+        <option value="38">note 37 (C#2)</option>
+        <option value="39">note 38 (D2)</option>
+        <option value="40">note 39 (Eb2)</option>
+        <option value="41">note 40 (E2)</option>
+        <option value="42">note 41 (F2)</option>
+        <option value="43">note 42 (F#2)</option>
+        <option value="44">note 43 (G2)</option>
+        <option value="45">note 44 (Ab2)</option>
+        <option value="46">note 45 (A2)</option>
+        <option value="47">note 46 (Bb2)</option>
+        <option value="48">note 47 (B2)</option>
+        <option value="49">note 48 (C3)</option>
+        <option value="50">note 49 (C#3)</option>
+        <option value="51">note 50 (D3)</option>
+        <option value="52">note 51 (Eb3)</option>
+        <option value="53">note 52 (E3)</option>
+        <option value="54">note 53 (F3)</option>
+        <option value="55">note 54 (F#3)</option>
+        <option value="56">note 55 (G3)</option>
+        <option value="57">note 56 (Ab3)</option>
+        <option value="58">note 57 (A3)</option>
+        <option value="59">note 58 (Bb3)</option>
+        <option value="60">note 59 (B3)</option>
+        <option value="61">note 60 (C4)</option>
+        <option value="62">note 61 (C#4)</option>
+        <option value="63">note 62 (D4)</option>
+        <option value="64">note 63 (Eb4)</option>
+        <option value="65">note 64 (E4)</option>
+        <option value="66">note 65 (F4)</option>
+        <option value="67">note 66 (F#4)</option>
+        <option value="68">note 67 (G4)</option>
+        <option value="69">note 68 (Ab4)</option>
+        <option value="70">note 69 (A4)</option>
+        <option value="71">note 70 (Bb4)</option>
+        <option value="72">note 71 (B4)</option>
+        <option value="73">note 72 (C5)</option>
+        <option value="74">note 73 (C#5)</option>
+        <option value="75">note 74 (D5)</option>
+        <option value="76">note 75 (Eb5)</option>
+        <option value="77">note 76 (E5)</option>
+        <option value="78">note 77 (F5)</option>
+        <option value="79">note 78 (F#5)</option>
+        <option value="80">note 79 (G5)</option>
+        <option value="81">note 80 (Ab5)</option>
+        <option value="82">note 81 (A5)</option>
+        <option value="83">note 82 (Bb5)</option>
+        <option value="84">note 83 (B5)</option>
+        <option value="85">note 84 (C6)</option>
+        <option value="86">note 85 (C#6)</option>
+        <option value="87">note 86 (D6)</option>
+        <option value="88">note 87 (Eb6)</option>
+        <option value="89">note 88 (E6)</option>
+        <option value="90">note 89 (F6)</option>
+        <option value="91">note 90 (F#6)</option>
+        <option value="92">note 91 (G6)</option>
+        <option value="93">note 92 (Ab6)</option>
+        <option value="94">note 93 (A6)</option>
+        <option value="95">note 94 (Bb6)</option>
+        <option value="96">note 95 (B6)</option>
+        <option value="97">note 96 (C7)</option>
+        <option value="98">note 97 (C#7)</option>
+        <option value="99">note 98 (D7)</option>
+        <option value="100">note 99 (Eb7)</option>
+        <option value="101">note 100 (E7)</option>
+        <option value="102">note 101 (F7)</option>
+        <option value="103">note 102 (F#7)</option>
+        <option value="104">note 103 (G7)</option>
+        <option value="105">note 104 (Ab7)</option>
+        <option value="106">note 105 (A7)</option>
+        <option value="107">note 106 (Bb7)</option>
+        <option value="108">note 107 (B7)</option>
+        <option value="109">note 108 (C8)</option>
+        <option value="110">note 109 (C#8)</option>
+        <option value="111">note 110 (D8)</option>
+        <option value="112">note 111 (Eb8)</option>
+        <option value="113">note 112 (E8)</option>
+        <option value="114">note 113 (F8)</option>
+        <option value="115">note 114 (F#8)</option>
+        <option value="116">note 115 (G8)</option>
+        <option value="117">note 116 (Ab8)</option>
+        <option value="118">note 117 (A8)</option>
+        <option value="119">note 118 (Bb8)</option>
+        <option value="120">note 119 (B8)</option>
+        <option value="121">note 120 (C9)</option>
+        <option value="122">note 121 (C#9)</option>
+        <option value="123">note 122 (D9)</option>
+        <option value="124">note 123 (Eb9)</option>
+        <option value="125">note 124 (E9)</option>
+        <option value="126">note 125 (F9)</option>
+        <option value="127">note 126 (F#9)</option>
+      </select>
+       on 
+      <select id="select_24">
+        <option value="0">any MIDI channel</option>
+        <option value="1">channel 1</option>
+        <option value="2">channel 2</option>
+        <option value="3">channel 3</option>
+        <option value="4">channel 4</option>
+        <option value="5">channel 5</option>
+        <option value="6">channel 6</option>
+        <option value="7">channel 7</option>
+        <option value="8">channel 8</option>
+        <option value="9">channel 9</option>
+        <option value="10">channel 10</option>
+        <option value="11">channel 11</option>
+        <option value="12">channel 12</option>
+        <option value="13">channel 13</option>
+        <option value="14">channel 14</option>
+        <option value="15">channel 15</option>
+        <option value="16">channel 16</option>
+      </select>
+    </span>
+    <span id="span_18">
+      <select id="select_25">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_19">
+      <select id="select_26">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_20">
+      <select id="select_27">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_21">
+      <select id="select_28">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence" data-offset="12">
+    CV out 1 is 
+    <select id="select_29">
+      <option value="0">gate of</option>
+      <option value="1">internal clock A</option>
+      <option value="2">internal clock B</option>
+      <option value="3">Pulse in 1</option>
+      <option value="4">Pulse in 2</option>
+      <option value="5">Turing machine analogue out</option>
+      <option value="6">MIDI CC</option>
+      <option value="7">pitch of MIDI note</option>
+    </select>
+    <span id="span_22">
+      <select id="select_30">
+        <option value="0">any MIDI note</option>
+        <option value="1">note 0 (C-1)</option>
+        <option value="2">note 1 (C#-1)</option>
+        <option value="3">note 2 (D-1)</option>
+        <option value="4">note 3 (Eb-1)</option>
+        <option value="5">note 4 (E-1)</option>
+        <option value="6">note 5 (F-1)</option>
+        <option value="7">note 6 (F#-1)</option>
+        <option value="8">note 7 (G-1)</option>
+        <option value="9">note 8 (Ab-1)</option>
+        <option value="10">note 9 (A-1)</option>
+        <option value="11">note 10 (Bb-1)</option>
+        <option value="12">note 11 (B-1)</option>
+        <option value="13">note 12 (C0)</option>
+        <option value="14">note 13 (C#0)</option>
+        <option value="15">note 14 (D0)</option>
+        <option value="16">note 15 (Eb0)</option>
+        <option value="17">note 16 (E0)</option>
+        <option value="18">note 17 (F0)</option>
+        <option value="19">note 18 (F#0)</option>
+        <option value="20">note 19 (G0)</option>
+        <option value="21">note 20 (Ab0)</option>
+        <option value="22">note 21 (A0)</option>
+        <option value="23">note 22 (Bb0)</option>
+        <option value="24">note 23 (B0)</option>
+        <option value="25">note 24 (C1)</option>
+        <option value="26">note 25 (C#1)</option>
+        <option value="27">note 26 (D1)</option>
+        <option value="28">note 27 (Eb1)</option>
+        <option value="29">note 28 (E1)</option>
+        <option value="30">note 29 (F1)</option>
+        <option value="31">note 30 (F#1)</option>
+        <option value="32">note 31 (G1)</option>
+        <option value="33">note 32 (Ab1)</option>
+        <option value="34">note 33 (A1)</option>
+        <option value="35">note 34 (Bb1)</option>
+        <option value="36">note 35 (B1)</option>
+        <option value="37">note 36 (C2)</option>
+        <option value="38">note 37 (C#2)</option>
+        <option value="39">note 38 (D2)</option>
+        <option value="40">note 39 (Eb2)</option>
+        <option value="41">note 40 (E2)</option>
+        <option value="42">note 41 (F2)</option>
+        <option value="43">note 42 (F#2)</option>
+        <option value="44">note 43 (G2)</option>
+        <option value="45">note 44 (Ab2)</option>
+        <option value="46">note 45 (A2)</option>
+        <option value="47">note 46 (Bb2)</option>
+        <option value="48">note 47 (B2)</option>
+        <option value="49">note 48 (C3)</option>
+        <option value="50">note 49 (C#3)</option>
+        <option value="51">note 50 (D3)</option>
+        <option value="52">note 51 (Eb3)</option>
+        <option value="53">note 52 (E3)</option>
+        <option value="54">note 53 (F3)</option>
+        <option value="55">note 54 (F#3)</option>
+        <option value="56">note 55 (G3)</option>
+        <option value="57">note 56 (Ab3)</option>
+        <option value="58">note 57 (A3)</option>
+        <option value="59">note 58 (Bb3)</option>
+        <option value="60">note 59 (B3)</option>
+        <option value="61">note 60 (C4)</option>
+        <option value="62">note 61 (C#4)</option>
+        <option value="63">note 62 (D4)</option>
+        <option value="64">note 63 (Eb4)</option>
+        <option value="65">note 64 (E4)</option>
+        <option value="66">note 65 (F4)</option>
+        <option value="67">note 66 (F#4)</option>
+        <option value="68">note 67 (G4)</option>
+        <option value="69">note 68 (Ab4)</option>
+        <option value="70">note 69 (A4)</option>
+        <option value="71">note 70 (Bb4)</option>
+        <option value="72">note 71 (B4)</option>
+        <option value="73">note 72 (C5)</option>
+        <option value="74">note 73 (C#5)</option>
+        <option value="75">note 74 (D5)</option>
+        <option value="76">note 75 (Eb5)</option>
+        <option value="77">note 76 (E5)</option>
+        <option value="78">note 77 (F5)</option>
+        <option value="79">note 78 (F#5)</option>
+        <option value="80">note 79 (G5)</option>
+        <option value="81">note 80 (Ab5)</option>
+        <option value="82">note 81 (A5)</option>
+        <option value="83">note 82 (Bb5)</option>
+        <option value="84">note 83 (B5)</option>
+        <option value="85">note 84 (C6)</option>
+        <option value="86">note 85 (C#6)</option>
+        <option value="87">note 86 (D6)</option>
+        <option value="88">note 87 (Eb6)</option>
+        <option value="89">note 88 (E6)</option>
+        <option value="90">note 89 (F6)</option>
+        <option value="91">note 90 (F#6)</option>
+        <option value="92">note 91 (G6)</option>
+        <option value="93">note 92 (Ab6)</option>
+        <option value="94">note 93 (A6)</option>
+        <option value="95">note 94 (Bb6)</option>
+        <option value="96">note 95 (B6)</option>
+        <option value="97">note 96 (C7)</option>
+        <option value="98">note 97 (C#7)</option>
+        <option value="99">note 98 (D7)</option>
+        <option value="100">note 99 (Eb7)</option>
+        <option value="101">note 100 (E7)</option>
+        <option value="102">note 101 (F7)</option>
+        <option value="103">note 102 (F#7)</option>
+        <option value="104">note 103 (G7)</option>
+        <option value="105">note 104 (Ab7)</option>
+        <option value="106">note 105 (A7)</option>
+        <option value="107">note 106 (Bb7)</option>
+        <option value="108">note 107 (B7)</option>
+        <option value="109">note 108 (C8)</option>
+        <option value="110">note 109 (C#8)</option>
+        <option value="111">note 110 (D8)</option>
+        <option value="112">note 111 (Eb8)</option>
+        <option value="113">note 112 (E8)</option>
+        <option value="114">note 113 (F8)</option>
+        <option value="115">note 114 (F#8)</option>
+        <option value="116">note 115 (G8)</option>
+        <option value="117">note 116 (Ab8)</option>
+        <option value="118">note 117 (A8)</option>
+        <option value="119">note 118 (Bb8)</option>
+        <option value="120">note 119 (B8)</option>
+        <option value="121">note 120 (C9)</option>
+        <option value="122">note 121 (C#9)</option>
+        <option value="123">note 122 (D9)</option>
+        <option value="124">note 123 (Eb9)</option>
+        <option value="125">note 124 (E9)</option>
+        <option value="126">note 125 (F9)</option>
+        <option value="127">note 126 (F#9)</option>
+      </select>
+       on 
+      <select id="select_31">
+        <option value="0">any MIDI channel</option>
+        <option value="1">channel 1</option>
+        <option value="2">channel 2</option>
+        <option value="3">channel 3</option>
+        <option value="4">channel 4</option>
+        <option value="5">channel 5</option>
+        <option value="6">channel 6</option>
+        <option value="7">channel 7</option>
+        <option value="8">channel 8</option>
+        <option value="9">channel 9</option>
+        <option value="10">channel 10</option>
+        <option value="11">channel 11</option>
+        <option value="12">channel 12</option>
+        <option value="13">channel 13</option>
+        <option value="14">channel 14</option>
+        <option value="15">channel 15</option>
+        <option value="16">channel 16</option>
+      </select>
+    </span>
+    <span id="span_23">
+      <select id="select_32">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_24">
+      <select id="select_33">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_25">
+      <select id="select_34">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_26">
+      <select id="select_35">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_27">
+      <select id="select_36">
+        <option value="0">0 (Bank Select)</option>
+        <option value="1">1 (Mod Wheel)</option>
+        <option value="2">2 (Breath)</option>
+        <option value="3">3</option>
+        <option value="4">4 (Foot Pedal)</option>
+        <option value="5">5 (Portamento Time)</option>
+        <option value="6">6 (Data Entry)</option>
+        <option value="7">7 (Volume)</option>
+        <option value="8">8 (Balance)</option>
+        <option value="9">9</option>
+        <option value="10">10 (Pan)</option>
+        <option value="11">11 (Expression)</option>
+        <option value="12">12 (Effect 1)</option>
+        <option value="13">13 (Effect 2)</option>
+        <option value="14">14</option>
+        <option value="15">15</option>
+        <option value="16">16</option>
+        <option value="17">17</option>
+        <option value="18">18</option>
+        <option value="19">19</option>
+        <option value="20">20</option>
+        <option value="21">21</option>
+        <option value="22">22</option>
+        <option value="23">23</option>
+        <option value="24">24</option>
+        <option value="25">25</option>
+        <option value="26">26</option>
+        <option value="27">27</option>
+        <option value="28">28</option>
+        <option value="29">29</option>
+        <option value="30">30</option>
+        <option value="31">31</option>
+        <option value="32">32 (Bank Select LSB)</option>
+        <option value="33">33 (Mod Wheel LSB)</option>
+        <option value="34">34 (Breath LSB)</option>
+        <option value="35">35</option>
+        <option value="36">36 (Foot Pedal LSB)</option>
+        <option value="37">37 (Portamento Time LSB)</option>
+        <option value="38">38 (Data Entry LSB)</option>
+        <option value="39">39 (Volume LSB)</option>
+        <option value="40">40 (Balance LSB)</option>
+        <option value="41">41</option>
+        <option value="42">42 (Pan LSB)</option>
+        <option value="43">43 (Expression LSB)</option>
+        <option value="44">44 (Effect 1 LSB)</option>
+        <option value="45">45 (Effect 2 LSB)</option>
+        <option value="46">46</option>
+        <option value="47">47</option>
+        <option value="48">48</option>
+        <option value="49">49</option>
+        <option value="50">50</option>
+        <option value="51">51</option>
+        <option value="52">52</option>
+        <option value="53">53</option>
+        <option value="54">54</option>
+        <option value="55">55</option>
+        <option value="56">56</option>
+        <option value="57">57</option>
+        <option value="58">58</option>
+        <option value="59">59</option>
+        <option value="60">60</option>
+        <option value="61">61</option>
+        <option value="62">62</option>
+        <option value="63">63</option>
+        <option value="64">64 (Damper Pedal)</option>
+        <option value="65">65 (Portamento)</option>
+        <option value="66">66 (Sostenuto)</option>
+        <option value="67">67 (Soft Pedal)</option>
+        <option value="68">68 (Legato)</option>
+        <option value="69">69 (Hold 2)</option>
+        <option value="70">70 (Sound Controller 1)</option>
+        <option value="71">71 (Sound Controller 2)</option>
+        <option value="72">72 (Sound Controller 3)</option>
+        <option value="73">73 (Sound Controller 4)</option>
+        <option value="74">74 (Sound Controller 5)</option>
+        <option value="75">75 (Sound Controller 6)</option>
+        <option value="76">76 (Sound Controller 7)</option>
+        <option value="77">77 (Sound Controller 8)</option>
+        <option value="78">78 (Sound Controller 9)</option>
+        <option value="79">79 (Sound Controller 10)</option>
+        <option value="80">80</option>
+        <option value="81">81</option>
+        <option value="82">82</option>
+        <option value="83">83</option>
+        <option value="84">84 (Portamento)</option>
+        <option value="85">85</option>
+        <option value="86">86</option>
+        <option value="87">87</option>
+        <option value="88">88 (H.R. Vel. Prefix)</option>
+        <option value="89">89</option>
+        <option value="90">90</option>
+        <option value="91">91 (Effect 1 Depth)</option>
+        <option value="92">92 (Effect 2 Depth)</option>
+        <option value="93">93 (Effect 3 Depth)</option>
+        <option value="94">94 (Effect 4 Depth)</option>
+        <option value="95">95 (Effect 5 Depth)</option>
+        <option value="96">96 (+1 Data Increment)</option>
+        <option value="97">97 (-1 Data Decrement)</option>
+        <option value="98">98 (NRPN LSB)</option>
+        <option value="99">99 (NRPN MSB)</option>
+        <option value="100">100 (RPN LSB)</option>
+        <option value="101">101 (RPN MSB)</option>
+        <option value="102">102</option>
+        <option value="103">103</option>
+        <option value="104">104</option>
+        <option value="105">105</option>
+        <option value="106">106</option>
+        <option value="107">107</option>
+        <option value="108">108</option>
+        <option value="109">109</option>
+        <option value="110">110</option>
+        <option value="111">111</option>
+        <option value="112">112</option>
+        <option value="113">113</option>
+        <option value="114">114</option>
+        <option value="115">115</option>
+        <option value="116">116</option>
+        <option value="117">117</option>
+        <option value="118">118</option>
+        <option value="119">119</option>
+        <option value="120">120 (All Sound Off)</option>
+        <option value="121">121 (Reset All)</option>
+        <option value="122">122 (Local on/off)</option>
+        <option value="123">123 (All Notes Off)</option>
+        <option value="124">124 (Omni Mode Off)</option>
+        <option value="125">125 (Omni Mode On)</option>
+        <option value="126">126 (Mono Mode)</option>
+        <option value="127">127 (Poly Mode)</option>
+      </select>
+       on 
+      <select id="select_37">
+        <option value="0">any MIDI channel</option>
+        <option value="1">channel 1</option>
+        <option value="2">channel 2</option>
+        <option value="3">channel 3</option>
+        <option value="4">channel 4</option>
+        <option value="5">channel 5</option>
+        <option value="6">channel 6</option>
+        <option value="7">channel 7</option>
+        <option value="8">channel 8</option>
+        <option value="9">channel 9</option>
+        <option value="10">channel 10</option>
+        <option value="11">channel 11</option>
+        <option value="12">channel 12</option>
+        <option value="13">channel 13</option>
+        <option value="14">channel 14</option>
+        <option value="15">channel 15</option>
+        <option value="16">channel 16</option>
+      </select>
+    </span>
+    <span id="span_28">
+      on 
+      <select id="select_38">
+        <option value="0">any MIDI channel</option>
+        <option value="1">channel 1</option>
+        <option value="2">channel 2</option>
+        <option value="3">channel 3</option>
+        <option value="4">channel 4</option>
+        <option value="5">channel 5</option>
+        <option value="6">channel 6</option>
+        <option value="7">channel 7</option>
+        <option value="8">channel 8</option>
+        <option value="9">channel 9</option>
+        <option value="10">channel 10</option>
+        <option value="11">channel 11</option>
+        <option value="12">channel 12</option>
+        <option value="13">channel 13</option>
+        <option value="14">channel 14</option>
+        <option value="15">channel 15</option>
+        <option value="16">channel 16</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence" data-offset="15">
+    CV out 2 is 
+    <select id="select_39">
+      <option value="0">gate of</option>
+      <option value="1">internal clock A</option>
+      <option value="2">internal clock B</option>
+      <option value="3">Pulse in 1</option>
+      <option value="4">Pulse in 2</option>
+      <option value="5">Turing machine analogue out</option>
+      <option value="6">MIDI CC</option>
+      <option value="7">pitch of MIDI note</option>
+    </select>
+    <span id="span_29">
+      <select id="select_40">
+        <option value="0">any MIDI note</option>
+        <option value="1">note 0 (C-1)</option>
+        <option value="2">note 1 (C#-1)</option>
+        <option value="3">note 2 (D-1)</option>
+        <option value="4">note 3 (Eb-1)</option>
+        <option value="5">note 4 (E-1)</option>
+        <option value="6">note 5 (F-1)</option>
+        <option value="7">note 6 (F#-1)</option>
+        <option value="8">note 7 (G-1)</option>
+        <option value="9">note 8 (Ab-1)</option>
+        <option value="10">note 9 (A-1)</option>
+        <option value="11">note 10 (Bb-1)</option>
+        <option value="12">note 11 (B-1)</option>
+        <option value="13">note 12 (C0)</option>
+        <option value="14">note 13 (C#0)</option>
+        <option value="15">note 14 (D0)</option>
+        <option value="16">note 15 (Eb0)</option>
+        <option value="17">note 16 (E0)</option>
+        <option value="18">note 17 (F0)</option>
+        <option value="19">note 18 (F#0)</option>
+        <option value="20">note 19 (G0)</option>
+        <option value="21">note 20 (Ab0)</option>
+        <option value="22">note 21 (A0)</option>
+        <option value="23">note 22 (Bb0)</option>
+        <option value="24">note 23 (B0)</option>
+        <option value="25">note 24 (C1)</option>
+        <option value="26">note 25 (C#1)</option>
+        <option value="27">note 26 (D1)</option>
+        <option value="28">note 27 (Eb1)</option>
+        <option value="29">note 28 (E1)</option>
+        <option value="30">note 29 (F1)</option>
+        <option value="31">note 30 (F#1)</option>
+        <option value="32">note 31 (G1)</option>
+        <option value="33">note 32 (Ab1)</option>
+        <option value="34">note 33 (A1)</option>
+        <option value="35">note 34 (Bb1)</option>
+        <option value="36">note 35 (B1)</option>
+        <option value="37">note 36 (C2)</option>
+        <option value="38">note 37 (C#2)</option>
+        <option value="39">note 38 (D2)</option>
+        <option value="40">note 39 (Eb2)</option>
+        <option value="41">note 40 (E2)</option>
+        <option value="42">note 41 (F2)</option>
+        <option value="43">note 42 (F#2)</option>
+        <option value="44">note 43 (G2)</option>
+        <option value="45">note 44 (Ab2)</option>
+        <option value="46">note 45 (A2)</option>
+        <option value="47">note 46 (Bb2)</option>
+        <option value="48">note 47 (B2)</option>
+        <option value="49">note 48 (C3)</option>
+        <option value="50">note 49 (C#3)</option>
+        <option value="51">note 50 (D3)</option>
+        <option value="52">note 51 (Eb3)</option>
+        <option value="53">note 52 (E3)</option>
+        <option value="54">note 53 (F3)</option>
+        <option value="55">note 54 (F#3)</option>
+        <option value="56">note 55 (G3)</option>
+        <option value="57">note 56 (Ab3)</option>
+        <option value="58">note 57 (A3)</option>
+        <option value="59">note 58 (Bb3)</option>
+        <option value="60">note 59 (B3)</option>
+        <option value="61">note 60 (C4)</option>
+        <option value="62">note 61 (C#4)</option>
+        <option value="63">note 62 (D4)</option>
+        <option value="64">note 63 (Eb4)</option>
+        <option value="65">note 64 (E4)</option>
+        <option value="66">note 65 (F4)</option>
+        <option value="67">note 66 (F#4)</option>
+        <option value="68">note 67 (G4)</option>
+        <option value="69">note 68 (Ab4)</option>
+        <option value="70">note 69 (A4)</option>
+        <option value="71">note 70 (Bb4)</option>
+        <option value="72">note 71 (B4)</option>
+        <option value="73">note 72 (C5)</option>
+        <option value="74">note 73 (C#5)</option>
+        <option value="75">note 74 (D5)</option>
+        <option value="76">note 75 (Eb5)</option>
+        <option value="77">note 76 (E5)</option>
+        <option value="78">note 77 (F5)</option>
+        <option value="79">note 78 (F#5)</option>
+        <option value="80">note 79 (G5)</option>
+        <option value="81">note 80 (Ab5)</option>
+        <option value="82">note 81 (A5)</option>
+        <option value="83">note 82 (Bb5)</option>
+        <option value="84">note 83 (B5)</option>
+        <option value="85">note 84 (C6)</option>
+        <option value="86">note 85 (C#6)</option>
+        <option value="87">note 86 (D6)</option>
+        <option value="88">note 87 (Eb6)</option>
+        <option value="89">note 88 (E6)</option>
+        <option value="90">note 89 (F6)</option>
+        <option value="91">note 90 (F#6)</option>
+        <option value="92">note 91 (G6)</option>
+        <option value="93">note 92 (Ab6)</option>
+        <option value="94">note 93 (A6)</option>
+        <option value="95">note 94 (Bb6)</option>
+        <option value="96">note 95 (B6)</option>
+        <option value="97">note 96 (C7)</option>
+        <option value="98">note 97 (C#7)</option>
+        <option value="99">note 98 (D7)</option>
+        <option value="100">note 99 (Eb7)</option>
+        <option value="101">note 100 (E7)</option>
+        <option value="102">note 101 (F7)</option>
+        <option value="103">note 102 (F#7)</option>
+        <option value="104">note 103 (G7)</option>
+        <option value="105">note 104 (Ab7)</option>
+        <option value="106">note 105 (A7)</option>
+        <option value="107">note 106 (Bb7)</option>
+        <option value="108">note 107 (B7)</option>
+        <option value="109">note 108 (C8)</option>
+        <option value="110">note 109 (C#8)</option>
+        <option value="111">note 110 (D8)</option>
+        <option value="112">note 111 (Eb8)</option>
+        <option value="113">note 112 (E8)</option>
+        <option value="114">note 113 (F8)</option>
+        <option value="115">note 114 (F#8)</option>
+        <option value="116">note 115 (G8)</option>
+        <option value="117">note 116 (Ab8)</option>
+        <option value="118">note 117 (A8)</option>
+        <option value="119">note 118 (Bb8)</option>
+        <option value="120">note 119 (B8)</option>
+        <option value="121">note 120 (C9)</option>
+        <option value="122">note 121 (C#9)</option>
+        <option value="123">note 122 (D9)</option>
+        <option value="124">note 123 (Eb9)</option>
+        <option value="125">note 124 (E9)</option>
+        <option value="126">note 125 (F9)</option>
+        <option value="127">note 126 (F#9)</option>
+      </select>
+       on 
+      <select id="select_41">
+        <option value="0">any MIDI channel</option>
+        <option value="1">channel 1</option>
+        <option value="2">channel 2</option>
+        <option value="3">channel 3</option>
+        <option value="4">channel 4</option>
+        <option value="5">channel 5</option>
+        <option value="6">channel 6</option>
+        <option value="7">channel 7</option>
+        <option value="8">channel 8</option>
+        <option value="9">channel 9</option>
+        <option value="10">channel 10</option>
+        <option value="11">channel 11</option>
+        <option value="12">channel 12</option>
+        <option value="13">channel 13</option>
+        <option value="14">channel 14</option>
+        <option value="15">channel 15</option>
+        <option value="16">channel 16</option>
+      </select>
+    </span>
+    <span id="span_30">
+      <select id="select_42">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_31">
+      <select id="select_43">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_32">
+      <select id="select_44">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_33">
+      <select id="select_45">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_34">
+      <select id="select_46">
+        <option value="0">0 (Bank Select)</option>
+        <option value="1">1 (Mod Wheel)</option>
+        <option value="2">2 (Breath)</option>
+        <option value="3">3</option>
+        <option value="4">4 (Foot Pedal)</option>
+        <option value="5">5 (Portamento Time)</option>
+        <option value="6">6 (Data Entry)</option>
+        <option value="7">7 (Volume)</option>
+        <option value="8">8 (Balance)</option>
+        <option value="9">9</option>
+        <option value="10">10 (Pan)</option>
+        <option value="11">11 (Expression)</option>
+        <option value="12">12 (Effect 1)</option>
+        <option value="13">13 (Effect 2)</option>
+        <option value="14">14</option>
+        <option value="15">15</option>
+        <option value="16">16</option>
+        <option value="17">17</option>
+        <option value="18">18</option>
+        <option value="19">19</option>
+        <option value="20">20</option>
+        <option value="21">21</option>
+        <option value="22">22</option>
+        <option value="23">23</option>
+        <option value="24">24</option>
+        <option value="25">25</option>
+        <option value="26">26</option>
+        <option value="27">27</option>
+        <option value="28">28</option>
+        <option value="29">29</option>
+        <option value="30">30</option>
+        <option value="31">31</option>
+        <option value="32">32 (Bank Select LSB)</option>
+        <option value="33">33 (Mod Wheel LSB)</option>
+        <option value="34">34 (Breath LSB)</option>
+        <option value="35">35</option>
+        <option value="36">36 (Foot Pedal LSB)</option>
+        <option value="37">37 (Portamento Time LSB)</option>
+        <option value="38">38 (Data Entry LSB)</option>
+        <option value="39">39 (Volume LSB)</option>
+        <option value="40">40 (Balance LSB)</option>
+        <option value="41">41</option>
+        <option value="42">42 (Pan LSB)</option>
+        <option value="43">43 (Expression LSB)</option>
+        <option value="44">44 (Effect 1 LSB)</option>
+        <option value="45">45 (Effect 2 LSB)</option>
+        <option value="46">46</option>
+        <option value="47">47</option>
+        <option value="48">48</option>
+        <option value="49">49</option>
+        <option value="50">50</option>
+        <option value="51">51</option>
+        <option value="52">52</option>
+        <option value="53">53</option>
+        <option value="54">54</option>
+        <option value="55">55</option>
+        <option value="56">56</option>
+        <option value="57">57</option>
+        <option value="58">58</option>
+        <option value="59">59</option>
+        <option value="60">60</option>
+        <option value="61">61</option>
+        <option value="62">62</option>
+        <option value="63">63</option>
+        <option value="64">64 (Damper Pedal)</option>
+        <option value="65">65 (Portamento)</option>
+        <option value="66">66 (Sostenuto)</option>
+        <option value="67">67 (Soft Pedal)</option>
+        <option value="68">68 (Legato)</option>
+        <option value="69">69 (Hold 2)</option>
+        <option value="70">70 (Sound Controller 1)</option>
+        <option value="71">71 (Sound Controller 2)</option>
+        <option value="72">72 (Sound Controller 3)</option>
+        <option value="73">73 (Sound Controller 4)</option>
+        <option value="74">74 (Sound Controller 5)</option>
+        <option value="75">75 (Sound Controller 6)</option>
+        <option value="76">76 (Sound Controller 7)</option>
+        <option value="77">77 (Sound Controller 8)</option>
+        <option value="78">78 (Sound Controller 9)</option>
+        <option value="79">79 (Sound Controller 10)</option>
+        <option value="80">80</option>
+        <option value="81">81</option>
+        <option value="82">82</option>
+        <option value="83">83</option>
+        <option value="84">84 (Portamento)</option>
+        <option value="85">85</option>
+        <option value="86">86</option>
+        <option value="87">87</option>
+        <option value="88">88 (H.R. Vel. Prefix)</option>
+        <option value="89">89</option>
+        <option value="90">90</option>
+        <option value="91">91 (Effect 1 Depth)</option>
+        <option value="92">92 (Effect 2 Depth)</option>
+        <option value="93">93 (Effect 3 Depth)</option>
+        <option value="94">94 (Effect 4 Depth)</option>
+        <option value="95">95 (Effect 5 Depth)</option>
+        <option value="96">96 (+1 Data Increment)</option>
+        <option value="97">97 (-1 Data Decrement)</option>
+        <option value="98">98 (NRPN LSB)</option>
+        <option value="99">99 (NRPN MSB)</option>
+        <option value="100">100 (RPN LSB)</option>
+        <option value="101">101 (RPN MSB)</option>
+        <option value="102">102</option>
+        <option value="103">103</option>
+        <option value="104">104</option>
+        <option value="105">105</option>
+        <option value="106">106</option>
+        <option value="107">107</option>
+        <option value="108">108</option>
+        <option value="109">109</option>
+        <option value="110">110</option>
+        <option value="111">111</option>
+        <option value="112">112</option>
+        <option value="113">113</option>
+        <option value="114">114</option>
+        <option value="115">115</option>
+        <option value="116">116</option>
+        <option value="117">117</option>
+        <option value="118">118</option>
+        <option value="119">119</option>
+        <option value="120">120 (All Sound Off)</option>
+        <option value="121">121 (Reset All)</option>
+        <option value="122">122 (Local on/off)</option>
+        <option value="123">123 (All Notes Off)</option>
+        <option value="124">124 (Omni Mode Off)</option>
+        <option value="125">125 (Omni Mode On)</option>
+        <option value="126">126 (Mono Mode)</option>
+        <option value="127">127 (Poly Mode)</option>
+      </select>
+       on 
+      <select id="select_47">
+        <option value="0">any MIDI channel</option>
+        <option value="1">channel 1</option>
+        <option value="2">channel 2</option>
+        <option value="3">channel 3</option>
+        <option value="4">channel 4</option>
+        <option value="5">channel 5</option>
+        <option value="6">channel 6</option>
+        <option value="7">channel 7</option>
+        <option value="8">channel 8</option>
+        <option value="9">channel 9</option>
+        <option value="10">channel 10</option>
+        <option value="11">channel 11</option>
+        <option value="12">channel 12</option>
+        <option value="13">channel 13</option>
+        <option value="14">channel 14</option>
+        <option value="15">channel 15</option>
+        <option value="16">channel 16</option>
+      </select>
+    </span>
+    <span id="span_35">
+      on 
+      <select id="select_48">
+        <option value="0">any MIDI channel</option>
+        <option value="1">channel 1</option>
+        <option value="2">channel 2</option>
+        <option value="3">channel 3</option>
+        <option value="4">channel 4</option>
+        <option value="5">channel 5</option>
+        <option value="6">channel 6</option>
+        <option value="7">channel 7</option>
+        <option value="8">channel 8</option>
+        <option value="9">channel 9</option>
+        <option value="10">channel 10</option>
+        <option value="11">channel 11</option>
+        <option value="12">channel 12</option>
+        <option value="13">channel 13</option>
+        <option value="14">channel 14</option>
+        <option value="15">channel 15</option>
+        <option value="16">channel 16</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence visgroup_clkA" data-offset="18">
+    Internal clock A tempo is set by 
+    <select id="select_49">
+      <option value="0">Main Knob</option>
+      <option value="1">Knob X</option>
+      <option value="2">Knob Y</option>
+      <option value="3">CV in 1</option>
+      <option value="4">CV in 2</option>
+      <option value="5">a constant</option>
+      <option value="6">Tap tempo</option>
+    </select>
+    <span id="span_36">
+      <select id="select_50">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_37">
+      <select id="select_51">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_38">
+      <select id="select_52">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_39">
+      value of 
+      <select id="select_53">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+      </select>
+       
+      <select id="select_54">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+      </select>
+       
+      <select id="select_55">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+      </select>
+       
+      <select id="select_56">
+        <option value="0">BPM</option>
+        <option value="1">Hz</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence visgroup_clkB" data-offset="23">
+    Internal clock B tempo is set by 
+    <select id="select_57">
+      <option value="0">Main Knob</option>
+      <option value="1">Knob X</option>
+      <option value="2">Knob Y</option>
+      <option value="3">CV in 1</option>
+      <option value="4">CV in 2</option>
+      <option value="5">a constant</option>
+      <option value="6">Tap tempo</option>
+    </select>
+    <span id="span_40">
+      <select id="select_58">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_41">
+      <select id="select_59">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_42">
+      <select id="select_60">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_43">
+      value of 
+      <select id="select_61">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+      </select>
+       
+      <select id="select_62">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+      </select>
+       
+      <select id="select_63">
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+      </select>
+       
+      <select id="select_64">
+        <option value="0">BPM</option>
+        <option value="1">Hz</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence visgroup_tm" data-offset="28">
+    Turing Machine is clocked by 
+    <select id="select_65">
+      <option value="0">the gate of</option>
+      <option value="1">internal clock A</option>
+      <option value="2">internal clock B</option>
+      <option value="3">Pulse in 1</option>
+      <option value="4">Pulse in 2</option>
+    </select>
+    <span id="span_44">
+      <select id="select_66">
+        <option value="0">any MIDI note</option>
+        <option value="1">note 0 (C-1)</option>
+        <option value="2">note 1 (C#-1)</option>
+        <option value="3">note 2 (D-1)</option>
+        <option value="4">note 3 (Eb-1)</option>
+        <option value="5">note 4 (E-1)</option>
+        <option value="6">note 5 (F-1)</option>
+        <option value="7">note 6 (F#-1)</option>
+        <option value="8">note 7 (G-1)</option>
+        <option value="9">note 8 (Ab-1)</option>
+        <option value="10">note 9 (A-1)</option>
+        <option value="11">note 10 (Bb-1)</option>
+        <option value="12">note 11 (B-1)</option>
+        <option value="13">note 12 (C0)</option>
+        <option value="14">note 13 (C#0)</option>
+        <option value="15">note 14 (D0)</option>
+        <option value="16">note 15 (Eb0)</option>
+        <option value="17">note 16 (E0)</option>
+        <option value="18">note 17 (F0)</option>
+        <option value="19">note 18 (F#0)</option>
+        <option value="20">note 19 (G0)</option>
+        <option value="21">note 20 (Ab0)</option>
+        <option value="22">note 21 (A0)</option>
+        <option value="23">note 22 (Bb0)</option>
+        <option value="24">note 23 (B0)</option>
+        <option value="25">note 24 (C1)</option>
+        <option value="26">note 25 (C#1)</option>
+        <option value="27">note 26 (D1)</option>
+        <option value="28">note 27 (Eb1)</option>
+        <option value="29">note 28 (E1)</option>
+        <option value="30">note 29 (F1)</option>
+        <option value="31">note 30 (F#1)</option>
+        <option value="32">note 31 (G1)</option>
+        <option value="33">note 32 (Ab1)</option>
+        <option value="34">note 33 (A1)</option>
+        <option value="35">note 34 (Bb1)</option>
+        <option value="36">note 35 (B1)</option>
+        <option value="37">note 36 (C2)</option>
+        <option value="38">note 37 (C#2)</option>
+        <option value="39">note 38 (D2)</option>
+        <option value="40">note 39 (Eb2)</option>
+        <option value="41">note 40 (E2)</option>
+        <option value="42">note 41 (F2)</option>
+        <option value="43">note 42 (F#2)</option>
+        <option value="44">note 43 (G2)</option>
+        <option value="45">note 44 (Ab2)</option>
+        <option value="46">note 45 (A2)</option>
+        <option value="47">note 46 (Bb2)</option>
+        <option value="48">note 47 (B2)</option>
+        <option value="49">note 48 (C3)</option>
+        <option value="50">note 49 (C#3)</option>
+        <option value="51">note 50 (D3)</option>
+        <option value="52">note 51 (Eb3)</option>
+        <option value="53">note 52 (E3)</option>
+        <option value="54">note 53 (F3)</option>
+        <option value="55">note 54 (F#3)</option>
+        <option value="56">note 55 (G3)</option>
+        <option value="57">note 56 (Ab3)</option>
+        <option value="58">note 57 (A3)</option>
+        <option value="59">note 58 (Bb3)</option>
+        <option value="60">note 59 (B3)</option>
+        <option value="61">note 60 (C4)</option>
+        <option value="62">note 61 (C#4)</option>
+        <option value="63">note 62 (D4)</option>
+        <option value="64">note 63 (Eb4)</option>
+        <option value="65">note 64 (E4)</option>
+        <option value="66">note 65 (F4)</option>
+        <option value="67">note 66 (F#4)</option>
+        <option value="68">note 67 (G4)</option>
+        <option value="69">note 68 (Ab4)</option>
+        <option value="70">note 69 (A4)</option>
+        <option value="71">note 70 (Bb4)</option>
+        <option value="72">note 71 (B4)</option>
+        <option value="73">note 72 (C5)</option>
+        <option value="74">note 73 (C#5)</option>
+        <option value="75">note 74 (D5)</option>
+        <option value="76">note 75 (Eb5)</option>
+        <option value="77">note 76 (E5)</option>
+        <option value="78">note 77 (F5)</option>
+        <option value="79">note 78 (F#5)</option>
+        <option value="80">note 79 (G5)</option>
+        <option value="81">note 80 (Ab5)</option>
+        <option value="82">note 81 (A5)</option>
+        <option value="83">note 82 (Bb5)</option>
+        <option value="84">note 83 (B5)</option>
+        <option value="85">note 84 (C6)</option>
+        <option value="86">note 85 (C#6)</option>
+        <option value="87">note 86 (D6)</option>
+        <option value="88">note 87 (Eb6)</option>
+        <option value="89">note 88 (E6)</option>
+        <option value="90">note 89 (F6)</option>
+        <option value="91">note 90 (F#6)</option>
+        <option value="92">note 91 (G6)</option>
+        <option value="93">note 92 (Ab6)</option>
+        <option value="94">note 93 (A6)</option>
+        <option value="95">note 94 (Bb6)</option>
+        <option value="96">note 95 (B6)</option>
+        <option value="97">note 96 (C7)</option>
+        <option value="98">note 97 (C#7)</option>
+        <option value="99">note 98 (D7)</option>
+        <option value="100">note 99 (Eb7)</option>
+        <option value="101">note 100 (E7)</option>
+        <option value="102">note 101 (F7)</option>
+        <option value="103">note 102 (F#7)</option>
+        <option value="104">note 103 (G7)</option>
+        <option value="105">note 104 (Ab7)</option>
+        <option value="106">note 105 (A7)</option>
+        <option value="107">note 106 (Bb7)</option>
+        <option value="108">note 107 (B7)</option>
+        <option value="109">note 108 (C8)</option>
+        <option value="110">note 109 (C#8)</option>
+        <option value="111">note 110 (D8)</option>
+        <option value="112">note 111 (Eb8)</option>
+        <option value="113">note 112 (E8)</option>
+        <option value="114">note 113 (F8)</option>
+        <option value="115">note 114 (F#8)</option>
+        <option value="116">note 115 (G8)</option>
+        <option value="117">note 116 (Ab8)</option>
+        <option value="118">note 117 (A8)</option>
+        <option value="119">note 118 (Bb8)</option>
+        <option value="120">note 119 (B8)</option>
+        <option value="121">note 120 (C9)</option>
+        <option value="122">note 121 (C#9)</option>
+        <option value="123">note 122 (D9)</option>
+        <option value="124">note 123 (Eb9)</option>
+        <option value="125">note 124 (E9)</option>
+        <option value="126">note 125 (F9)</option>
+        <option value="127">note 126 (F#9)</option>
+      </select>
+       on 
+      <select id="select_67">
+        <option value="0">any MIDI channel</option>
+        <option value="1">channel 1</option>
+        <option value="2">channel 2</option>
+        <option value="3">channel 3</option>
+        <option value="4">channel 4</option>
+        <option value="5">channel 5</option>
+        <option value="6">channel 6</option>
+        <option value="7">channel 7</option>
+        <option value="8">channel 8</option>
+        <option value="9">channel 9</option>
+        <option value="10">channel 10</option>
+        <option value="11">channel 11</option>
+        <option value="12">channel 12</option>
+        <option value="13">channel 13</option>
+        <option value="14">channel 14</option>
+        <option value="15">channel 15</option>
+        <option value="16">channel 16</option>
+      </select>
+    </span>
+    <span id="span_45">
+      <select id="select_68">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_46">
+      <select id="select_69">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_47">
+      <select id="select_70">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_48">
+      <select id="select_71">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence visgroup_tm" data-offset="31">
+    Turing Machine is of length 
+    <select id="select_72">
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+      <option value="7">7</option>
+      <option value="8">8</option>
+      <option value="9">9</option>
+      <option value="10">10</option>
+      <option value="11">11</option>
+      <option value="12">12</option>
+      <option value="13">13</option>
+      <option value="14">14</option>
+      <option value="15">15</option>
+      <option value="16">16</option>
+    </select>
+  </div>
+  <div class="sentence visgroup_tm" data-offset="32">
+    Turing Machine randomness is set by 
+    <select id="select_73">
+      <option value="0">Main Knob</option>
+      <option value="1">Knob X</option>
+      <option value="2">Knob Y</option>
+      <option value="3">CV in 1</option>
+      <option value="4">CV in 2</option>
+      <option value="5">a constant</option>
+    </select>
+    <span id="span_49">
+      <select id="select_74">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_50">
+      <select id="select_75">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_51">
+      <select id="select_76">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_52">
+      value of 
+      <select id="select_77">
+        <option value="0">0%</option>
+        <option value="1">1%</option>
+        <option value="2">2%</option>
+        <option value="3">3%</option>
+        <option value="4">4%</option>
+        <option value="5">5%</option>
+        <option value="6">6%</option>
+        <option value="7">7%</option>
+        <option value="8">8%</option>
+        <option value="9">9%</option>
+        <option value="10">10%</option>
+        <option value="11">11%</option>
+        <option value="12">12%</option>
+        <option value="13">13%</option>
+        <option value="14">14%</option>
+        <option value="15">15%</option>
+        <option value="16">16%</option>
+        <option value="17">17%</option>
+        <option value="18">18%</option>
+        <option value="19">19%</option>
+        <option value="20">20%</option>
+        <option value="21">21%</option>
+        <option value="22">22%</option>
+        <option value="23">23%</option>
+        <option value="24">24%</option>
+        <option value="25">25%</option>
+        <option value="26">26%</option>
+        <option value="27">27%</option>
+        <option value="28">28%</option>
+        <option value="29">29%</option>
+        <option value="30">30%</option>
+        <option value="31">31%</option>
+        <option value="32">32%</option>
+        <option value="33">33%</option>
+        <option value="34">34%</option>
+        <option value="35">35%</option>
+        <option value="36">36%</option>
+        <option value="37">37%</option>
+        <option value="38">38%</option>
+        <option value="39">39%</option>
+        <option value="40">40%</option>
+        <option value="41">41%</option>
+        <option value="42">42%</option>
+        <option value="43">43%</option>
+        <option value="44">44%</option>
+        <option value="45">45%</option>
+        <option value="46">46%</option>
+        <option value="47">47%</option>
+        <option value="48">48%</option>
+        <option value="49">49%</option>
+        <option value="50">50%</option>
+        <option value="51">51%</option>
+        <option value="52">52%</option>
+        <option value="53">53%</option>
+        <option value="54">54%</option>
+        <option value="55">55%</option>
+        <option value="56">56%</option>
+        <option value="57">57%</option>
+        <option value="58">58%</option>
+        <option value="59">59%</option>
+        <option value="60">60%</option>
+        <option value="61">61%</option>
+        <option value="62">62%</option>
+        <option value="63">63%</option>
+        <option value="64">64%</option>
+        <option value="65">65%</option>
+        <option value="66">66%</option>
+        <option value="67">67%</option>
+        <option value="68">68%</option>
+        <option value="69">69%</option>
+        <option value="70">70%</option>
+        <option value="71">71%</option>
+        <option value="72">72%</option>
+        <option value="73">73%</option>
+        <option value="74">74%</option>
+        <option value="75">75%</option>
+        <option value="76">76%</option>
+        <option value="77">77%</option>
+        <option value="78">78%</option>
+        <option value="79">79%</option>
+        <option value="80">80%</option>
+        <option value="81">81%</option>
+        <option value="82">82%</option>
+        <option value="83">83%</option>
+        <option value="84">84%</option>
+        <option value="85">85%</option>
+        <option value="86">86%</option>
+        <option value="87">87%</option>
+        <option value="88">88%</option>
+        <option value="89">89%</option>
+        <option value="90">90%</option>
+        <option value="91">91%</option>
+        <option value="92">92%</option>
+        <option value="93">93%</option>
+        <option value="94">94%</option>
+        <option value="95">95%</option>
+        <option value="96">96%</option>
+        <option value="97">97%</option>
+        <option value="98">98%</option>
+        <option value="99">99%</option>
+        <option value="100">100%</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence visgroup_bg" data-offset="34">
+    Bernoulli gate is clocked by 
+    <select id="select_78">
+      <option value="0">the gate of</option>
+      <option value="1">internal clock A</option>
+      <option value="2">internal clock B</option>
+      <option value="3">Pulse in 1</option>
+      <option value="4">Pulse in 2</option>
+    </select>
+    <span id="span_53">
+      <select id="select_79">
+        <option value="0">any MIDI note</option>
+        <option value="1">note 0 (C-1)</option>
+        <option value="2">note 1 (C#-1)</option>
+        <option value="3">note 2 (D-1)</option>
+        <option value="4">note 3 (Eb-1)</option>
+        <option value="5">note 4 (E-1)</option>
+        <option value="6">note 5 (F-1)</option>
+        <option value="7">note 6 (F#-1)</option>
+        <option value="8">note 7 (G-1)</option>
+        <option value="9">note 8 (Ab-1)</option>
+        <option value="10">note 9 (A-1)</option>
+        <option value="11">note 10 (Bb-1)</option>
+        <option value="12">note 11 (B-1)</option>
+        <option value="13">note 12 (C0)</option>
+        <option value="14">note 13 (C#0)</option>
+        <option value="15">note 14 (D0)</option>
+        <option value="16">note 15 (Eb0)</option>
+        <option value="17">note 16 (E0)</option>
+        <option value="18">note 17 (F0)</option>
+        <option value="19">note 18 (F#0)</option>
+        <option value="20">note 19 (G0)</option>
+        <option value="21">note 20 (Ab0)</option>
+        <option value="22">note 21 (A0)</option>
+        <option value="23">note 22 (Bb0)</option>
+        <option value="24">note 23 (B0)</option>
+        <option value="25">note 24 (C1)</option>
+        <option value="26">note 25 (C#1)</option>
+        <option value="27">note 26 (D1)</option>
+        <option value="28">note 27 (Eb1)</option>
+        <option value="29">note 28 (E1)</option>
+        <option value="30">note 29 (F1)</option>
+        <option value="31">note 30 (F#1)</option>
+        <option value="32">note 31 (G1)</option>
+        <option value="33">note 32 (Ab1)</option>
+        <option value="34">note 33 (A1)</option>
+        <option value="35">note 34 (Bb1)</option>
+        <option value="36">note 35 (B1)</option>
+        <option value="37">note 36 (C2)</option>
+        <option value="38">note 37 (C#2)</option>
+        <option value="39">note 38 (D2)</option>
+        <option value="40">note 39 (Eb2)</option>
+        <option value="41">note 40 (E2)</option>
+        <option value="42">note 41 (F2)</option>
+        <option value="43">note 42 (F#2)</option>
+        <option value="44">note 43 (G2)</option>
+        <option value="45">note 44 (Ab2)</option>
+        <option value="46">note 45 (A2)</option>
+        <option value="47">note 46 (Bb2)</option>
+        <option value="48">note 47 (B2)</option>
+        <option value="49">note 48 (C3)</option>
+        <option value="50">note 49 (C#3)</option>
+        <option value="51">note 50 (D3)</option>
+        <option value="52">note 51 (Eb3)</option>
+        <option value="53">note 52 (E3)</option>
+        <option value="54">note 53 (F3)</option>
+        <option value="55">note 54 (F#3)</option>
+        <option value="56">note 55 (G3)</option>
+        <option value="57">note 56 (Ab3)</option>
+        <option value="58">note 57 (A3)</option>
+        <option value="59">note 58 (Bb3)</option>
+        <option value="60">note 59 (B3)</option>
+        <option value="61">note 60 (C4)</option>
+        <option value="62">note 61 (C#4)</option>
+        <option value="63">note 62 (D4)</option>
+        <option value="64">note 63 (Eb4)</option>
+        <option value="65">note 64 (E4)</option>
+        <option value="66">note 65 (F4)</option>
+        <option value="67">note 66 (F#4)</option>
+        <option value="68">note 67 (G4)</option>
+        <option value="69">note 68 (Ab4)</option>
+        <option value="70">note 69 (A4)</option>
+        <option value="71">note 70 (Bb4)</option>
+        <option value="72">note 71 (B4)</option>
+        <option value="73">note 72 (C5)</option>
+        <option value="74">note 73 (C#5)</option>
+        <option value="75">note 74 (D5)</option>
+        <option value="76">note 75 (Eb5)</option>
+        <option value="77">note 76 (E5)</option>
+        <option value="78">note 77 (F5)</option>
+        <option value="79">note 78 (F#5)</option>
+        <option value="80">note 79 (G5)</option>
+        <option value="81">note 80 (Ab5)</option>
+        <option value="82">note 81 (A5)</option>
+        <option value="83">note 82 (Bb5)</option>
+        <option value="84">note 83 (B5)</option>
+        <option value="85">note 84 (C6)</option>
+        <option value="86">note 85 (C#6)</option>
+        <option value="87">note 86 (D6)</option>
+        <option value="88">note 87 (Eb6)</option>
+        <option value="89">note 88 (E6)</option>
+        <option value="90">note 89 (F6)</option>
+        <option value="91">note 90 (F#6)</option>
+        <option value="92">note 91 (G6)</option>
+        <option value="93">note 92 (Ab6)</option>
+        <option value="94">note 93 (A6)</option>
+        <option value="95">note 94 (Bb6)</option>
+        <option value="96">note 95 (B6)</option>
+        <option value="97">note 96 (C7)</option>
+        <option value="98">note 97 (C#7)</option>
+        <option value="99">note 98 (D7)</option>
+        <option value="100">note 99 (Eb7)</option>
+        <option value="101">note 100 (E7)</option>
+        <option value="102">note 101 (F7)</option>
+        <option value="103">note 102 (F#7)</option>
+        <option value="104">note 103 (G7)</option>
+        <option value="105">note 104 (Ab7)</option>
+        <option value="106">note 105 (A7)</option>
+        <option value="107">note 106 (Bb7)</option>
+        <option value="108">note 107 (B7)</option>
+        <option value="109">note 108 (C8)</option>
+        <option value="110">note 109 (C#8)</option>
+        <option value="111">note 110 (D8)</option>
+        <option value="112">note 111 (Eb8)</option>
+        <option value="113">note 112 (E8)</option>
+        <option value="114">note 113 (F8)</option>
+        <option value="115">note 114 (F#8)</option>
+        <option value="116">note 115 (G8)</option>
+        <option value="117">note 116 (Ab8)</option>
+        <option value="118">note 117 (A8)</option>
+        <option value="119">note 118 (Bb8)</option>
+        <option value="120">note 119 (B8)</option>
+        <option value="121">note 120 (C9)</option>
+        <option value="122">note 121 (C#9)</option>
+        <option value="123">note 122 (D9)</option>
+        <option value="124">note 123 (Eb9)</option>
+        <option value="125">note 124 (E9)</option>
+        <option value="126">note 125 (F9)</option>
+        <option value="127">note 126 (F#9)</option>
+      </select>
+       on 
+      <select id="select_80">
+        <option value="0">any MIDI channel</option>
+        <option value="1">channel 1</option>
+        <option value="2">channel 2</option>
+        <option value="3">channel 3</option>
+        <option value="4">channel 4</option>
+        <option value="5">channel 5</option>
+        <option value="6">channel 6</option>
+        <option value="7">channel 7</option>
+        <option value="8">channel 8</option>
+        <option value="9">channel 9</option>
+        <option value="10">channel 10</option>
+        <option value="11">channel 11</option>
+        <option value="12">channel 12</option>
+        <option value="13">channel 13</option>
+        <option value="14">channel 14</option>
+        <option value="15">channel 15</option>
+        <option value="16">channel 16</option>
+      </select>
+    </span>
+    <span id="span_54">
+      <select id="select_81">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_55">
+      <select id="select_82">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_56">
+      <select id="select_83">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+    <span id="span_57">
+      <select id="select_84">
+        <option value="0">with no divider</option>
+        <option value="1">divided by 2</option>
+        <option value="2">divided by 3</option>
+        <option value="3">divided by 4</option>
+        <option value="4">divided by 5</option>
+        <option value="5">divided by 6</option>
+        <option value="6">divided by 7</option>
+        <option value="7">divided by 8</option>
+        <option value="8">divided by 9</option>
+        <option value="9">divided by 10</option>
+        <option value="10">divided by 12</option>
+        <option value="11">divided by 16</option>
+        <option value="12">divided by 24</option>
+        <option value="13">divided by 32</option>
+      </select>
+    </span>
+  </div>
+  <div class="sentence visgroup_bg" data-offset="37">
+    Bernoulli gate 
+    <select id="select_85">
+      <option value="0">does not toggle</option>
+      <option value="1">toggles</option>
+    </select>
+     and is on 
+    <select id="select_86">
+      <option value="0">for the full clock cycle</option>
+      <option value="1">only when incoming clock is high</option>
+    </select>
+  </div>
+  <div class="sentence visgroup_bg" data-offset="39">
+    Bernoulli gate randomness is set by 
+    <select id="select_87">
+      <option value="0">Main Knob</option>
+      <option value="1">Knob X</option>
+      <option value="2">Knob Y</option>
+      <option value="3">CV in 1</option>
+      <option value="4">CV in 2</option>
+      <option value="5">a constant</option>
+    </select>
+    <span id="span_58">
+      <select id="select_88">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_59">
+      <select id="select_89">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_60">
+      <select id="select_90">
+        <option value="0">only</option>
+        <option value="1">+ CV in 1</option>
+        <option value="2">+ CV in 2</option>
+      </select>
+    </span>
+    <span id="span_61">
+      value of 
+      <select id="select_91">
+        <option value="0">0%</option>
+        <option value="1">1%</option>
+        <option value="2">2%</option>
+        <option value="3">3%</option>
+        <option value="4">4%</option>
+        <option value="5">5%</option>
+        <option value="6">6%</option>
+        <option value="7">7%</option>
+        <option value="8">8%</option>
+        <option value="9">9%</option>
+        <option value="10">10%</option>
+        <option value="11">11%</option>
+        <option value="12">12%</option>
+        <option value="13">13%</option>
+        <option value="14">14%</option>
+        <option value="15">15%</option>
+        <option value="16">16%</option>
+        <option value="17">17%</option>
+        <option value="18">18%</option>
+        <option value="19">19%</option>
+        <option value="20">20%</option>
+        <option value="21">21%</option>
+        <option value="22">22%</option>
+        <option value="23">23%</option>
+        <option value="24">24%</option>
+        <option value="25">25%</option>
+        <option value="26">26%</option>
+        <option value="27">27%</option>
+        <option value="28">28%</option>
+        <option value="29">29%</option>
+        <option value="30">30%</option>
+        <option value="31">31%</option>
+        <option value="32">32%</option>
+        <option value="33">33%</option>
+        <option value="34">34%</option>
+        <option value="35">35%</option>
+        <option value="36">36%</option>
+        <option value="37">37%</option>
+        <option value="38">38%</option>
+        <option value="39">39%</option>
+        <option value="40">40%</option>
+        <option value="41">41%</option>
+        <option value="42">42%</option>
+        <option value="43">43%</option>
+        <option value="44">44%</option>
+        <option value="45">45%</option>
+        <option value="46">46%</option>
+        <option value="47">47%</option>
+        <option value="48">48%</option>
+        <option value="49">49%</option>
+        <option value="50">50%</option>
+        <option value="51">51%</option>
+        <option value="52">52%</option>
+        <option value="53">53%</option>
+        <option value="54">54%</option>
+        <option value="55">55%</option>
+        <option value="56">56%</option>
+        <option value="57">57%</option>
+        <option value="58">58%</option>
+        <option value="59">59%</option>
+        <option value="60">60%</option>
+        <option value="61">61%</option>
+        <option value="62">62%</option>
+        <option value="63">63%</option>
+        <option value="64">64%</option>
+        <option value="65">65%</option>
+        <option value="66">66%</option>
+        <option value="67">67%</option>
+        <option value="68">68%</option>
+        <option value="69">69%</option>
+        <option value="70">70%</option>
+        <option value="71">71%</option>
+        <option value="72">72%</option>
+        <option value="73">73%</option>
+        <option value="74">74%</option>
+        <option value="75">75%</option>
+        <option value="76">76%</option>
+        <option value="77">77%</option>
+        <option value="78">78%</option>
+        <option value="79">79%</option>
+        <option value="80">80%</option>
+        <option value="81">81%</option>
+        <option value="82">82%</option>
+        <option value="83">83%</option>
+        <option value="84">84%</option>
+        <option value="85">85%</option>
+        <option value="86">86%</option>
+        <option value="87">87%</option>
+        <option value="88">88%</option>
+        <option value="89">89%</option>
+        <option value="90">90%</option>
+        <option value="91">91%</option>
+        <option value="92">92%</option>
+        <option value="93">93%</option>
+        <option value="94">94%</option>
+        <option value="95">95%</option>
+        <option value="96">96%</option>
+        <option value="97">97%</option>
+        <option value="98">98%</option>
+        <option value="99">99%</option>
+        <option value="100">100%</option>
+      </select>
+    </span>
+  </div>
+</div>
+
+	  <div style='margin-top:2em;'>
+		<button onClick='SendToComputer()'>Save to flash card</button>
+	  </div>
+	  <div id='messages'>
+	  </div>
+	</div>
+  </body>
+  
+
+</html>
