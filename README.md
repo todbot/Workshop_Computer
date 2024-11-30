@@ -8,7 +8,7 @@ Further discussion in the Discord - invite in the documentation below.
 
 ### Demonstrations+HelloWorlds
 
-- Starter code in various platforms - Arduino, Pico SDK. 
+- Starter code in various platforms - Arduino, Pico SDK, CircuitPython, Micropython
 - Work in progress 
 
 ### RELEASES 
