@@ -13,7 +13,7 @@ At the moment, [this Google doc is the most up-to-date shortform documentation](
 
 ### Demonstrations+HelloWorlds
 
-- Starter code in various platforms - Arduino, Pico SDK, CircuitPython, Micropython
+Starter code in various platforms - Arduino, Pico SDK, CircuitPython, Micropython
 
 ### RELEASES 
 My suggestion for the first 100 projects is that people grab numbers & folders in the 'releases' folder - by sending pull requests - then share whatever they're comfortable sharing - uf2, source, just documentation, or just a link to your own repo/web/gists, whatever works best. I don't have much experience of this kind of collective development, so would be delighted if better approach emerges.  
