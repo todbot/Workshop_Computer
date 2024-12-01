@@ -2,9 +2,9 @@
 
 # Workshop Computer  
 
-Dev material for the Music Thing Workshop Computer
-[Music Thing Workshop System Homepage](https://www.musicthing.co.uk/workshopsystem/)
-Further discussion in the Discord - invite in the documentation below. 
+Dev material for the Music Thing Workshop Computer  
+[Music Thing Workshop System Homepage](https://www.musicthing.co.uk/workshopsystem/)  
+Further discussion in the Discord - invite in the documentation below.   
 
 ### DOCUMENTATION 
 
