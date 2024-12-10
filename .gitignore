@@ -13,20 +13,3 @@ Icon?
 *.dmp
 .fseventsd
 
-# Arduino specific
-*.elf
-*.hex
-*.eep
-*.bin
-*.log
-*.o
-*.a
-*.d
-*.pyc
-*.pyo
-*.class
-*.cache
-*.ino.*
-*.cpp.*
-*.ino.cpp
-
