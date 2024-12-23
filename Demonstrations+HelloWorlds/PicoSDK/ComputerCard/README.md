@@ -111,7 +111,7 @@ Thanks to divmod for figuring this out and writing this section
 - Open Arduino IDE and create a new sketch and save it
 - In the Arduino IDE, select Raspberry Pi Pico as your board
 - Download ComputerCard.h file from this ComputerCard repository
-- Store this file in the directory of you sketch (there should be an .ino file with your sketch name in this directory).
+- Store this file in the directory of your sketch (there should be an .ino file with your sketch name in this directory).
 
 ### Code
 - As a start you can just copy the Sample&Hold example from the following file into your sketch (the .ino file): https://raw.githubusercontent.com/TomWhitwell/Workshop_Computer/refs/heads/main/Demonstrations%2BHelloWorlds/PicoSDK/ComputerCard/examples/sample_and_hold/main.cpp
