@@ -136,11 +136,11 @@ void loop() {
 
 # Programming for ComputerCard
 
-The ComputerCard framework is designed to allow processing of audio signals (with bandwidths up to ~20kHz) at low latency. To do this, ComputerCard calculates audio samples individually, calling the users `ProcessSample()` function at 48kHz. The 'ProcessSample()' function for one sample must finish before the next sample is due, which restricts the user's code to a maximum of ~20μs per sample.
+ComputerCard is designed for processing of audio signals (with bandwidths up to ~20kHz) at low latency. To do this, ComputerCard calculates audio samples individually, calling the users `ProcessSample()` function at 48kHz. The 'ProcessSample()' function for one sample must finish before the next sample is due, meaning that the user's code for each sample must execute in ~20μs.
 
-ComputerCard can of course be used for programs using pulse/CV signals only, and these will benefit from the low latency of ComputerCard. But, the fixed 48kHz clock used by ComputerCard means that these programs still need to abide by the same stringent audio timing requirements.
+ComputerCard can of course be used for programs using pulse/CV signals only - but, the fixed 48kHz sample rate means that these programs still need to abide by the same stringent audio timing requirements.
 
-The RP2040 microcontroller in the Computer is a 133MHz dual-core chip, with hardware multiplier but no hardware floating point support. Given these specifications, the ~20μs-per-sample time limit has several consequences:
+The RP2040 microcontroller in the Computer is a 133MHz dual-core chip, with hardware multiplier but no hardware floating point support. Given these specifications, the ~20μs-per-sample limit has several consequences:
 
 1. most calculations must be done with integers, rather than floating point.
 2. relatively expensive calculations must be split between `ProcessSample` calls to ensure than no one call goes above the maximum duration.
@@ -153,7 +153,7 @@ We'll discuss each of these below
 
 Native integer calculations on the RP2040 - that is, addition, subtraction and multiplication of at most 32-bit numbers - are around [35 times faster](https://forums.raspberrypi.com/viewtopic.php?t=308794#p1848188) than the software-emulated floating point equivalents.
 
-At the specified 133MHz clock rate, floating point operations take around 500ns, allowing at most 40 (at likely rather fewer) per sample. Even a single call to more complicated floating point functions such as `sin` is too expensive to run every sample. For this reason, ComputerCard does not use floating-point variables.
+At the specified 133MHz clock rate, floating point operations take around 500ns, allowing at most 40 (in practice, likely rather fewer) per sample. Even a single call to more complicated floating point functions such as `sin` is too expensive to run every sample. For this reason, ComputerCard does not use floating-point variables.
 
 Since the Computer uses a 12-bit DAC, the approach I have taken instead is to use signed 16-bit integers to store signals, but usually signed 32-bit integers (`int32_t`, as defined in the `cstdint` header) to process them. The hardware integer multiply on the RP2040 makes many such operations very efficient. 
 
