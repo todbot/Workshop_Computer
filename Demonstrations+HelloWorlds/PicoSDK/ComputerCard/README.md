@@ -199,19 +199,19 @@ AudioOut1(mix);
 AudioOut2(mix);
 ```
 
-The choice of `4095 - k` not `4096 - k` means that this crossfade perfectly isolates each of the two inputs at the end of travel, at the expense of a very slight decline ($4095/4096$) in anplitude.
+The choice of `4095 - k` not `4096 - k` means that this crossfade perfectly isolates each of the two inputs at the end of travel, at the expense of a very slight decline ($4095/4096$) in amplitude.
 
-Let's again examine the possibility of overflow. The multiply operations here calculate the product of signed 12-bit and unsigned 12-bit numbers, resulting in a signed 24-bit number. We then add two of these, which would in general produce up to a signed 25-bit number, but here because of the `k` and `4095-k` multiplicands, the sum is in fact signed 24-bit. This is well within the signed 32-bit range of the integer type, so no risk of overflow during the evaluation of the expression. Shifting right by 12 bits produces a signed 12-bit result (-2048 to 2047) which will not wrap in the `AudioOut` functions.
+Let's again examine the possibility of overflow. The multiply operations here calculate the product of signed 12-bit and unsigned 12-bit numbers, resulting in a signed 24-bit number. We then add two of these, which would in general produce up to a signed 25-bit number, but here because of the `k` and `4095-k` multiplicands, the sum is in fact signed 24-bit. This is well within the signed 32-bit range of the integer type, so there is no risk of overflow during the evaluation of the expression. Shifting right by 12 bits produces a signed 12-bit result (-2048 to 2047) which will not wrap in the `AudioOut` functions.
 
 
 ### Example: first-order IIR LPF
 One of the most common DSP operations is a first-order filter, such as the IIR lowpass filter
 
-$$ y[n] = a y[n-1] + b x[n] $$
+$$ y[n] = a y[n-1] + b x[n], $$
 
-with filter coefficients $a$ ($0 < a < 1$) and $b$. For unity gain at DC, $b = 1-a$, and so our filter equation
+with filter coefficients $a$ ($0 < a < 1$) and $b$. For unity gain at DC, $b = 1-a$, and so our filter equation,
 
-$$ y[n] = a y[n-1] + (1-a) x[n] $$
+$$ y[n] = a y[n-1] + (1-a) x[n], $$
 
 looks almost identical to the crossfade example above. Choosing the input data $x$ to be the first audio input, and sending the filter output $y$ to the first audio output, we might write
 
@@ -227,7 +227,7 @@ AudioOut1(out);
 where 
 - the filter coefficient value $a = 0.9983 \approx 4089/2^{12}$ here has been chosen arbitrarily,
 - `y` is assumed to be an `int32_t` that persists between calls to `ProcessSample()` (likely a class member), and
-- clipping has been applied to the filter output, as it is not obvious that this will always be in the 12-bit range -2048 to 2047.
+- clipping has been applied to the filter output, as it is not obvious that this will be in the 12-bit range -2048 to 2047 for all possible input signals
 
 However, as well as integer overflow, another consideration with integer/fixed-point arithmetic is roundoff error. Suppose that in the code above, previous audio input has resulted in `y` having the value 500, and the audio input then falls silent (`AudioIn1` returns zero). For this low-pass filter, we would expect `y` to drop to zero exponentially. The relevant expression becomes:
 ```c++
@@ -235,7 +235,7 @@ y = (4089*y) >> 12;
 ```
 Repeated evaluation of this shows that the decay of `y` from an initial value of 500 is far from exponential - in fact it drops linearly to zero! In this problem the amount by which `y` decreases per sample is between 0 and 1 if evaluated exactly, but in integer arithmetic this decay must be an integer and is quantised to a decay of 1 per sample.
 
-This can be mitigated by amplifying the signal going into the filter, the attenuating the filter output by the same amount. Here we amplify and attenuate by a factor of $2^7 = 128$:
+This problem can be mitigated by amplifying the signal going into the filter by a large factor, the attenuating the filter output by the same amount. Here we amplify and attenuate by $2^7 = 128$:
 ```c++
 int32_t a = 4089;
 y = (a*y + (4096-a)*(AudioIn1()<<7)) >> 12;
@@ -246,23 +246,21 @@ if (out>2047) out=2047;
 
 AudioOut1(out);
 ```
-As before, we must check for overflow, and for the first time in these examples, we are here getting close to overflow with 32-bit integers.  The expression `(4096-a)*(AudioIn1()<<7)` is `(unsigned 12-bit) * (signed 12-bit) << 7`, giving a signed 31-bit result, to which `a*y`, 24-bit value, is added. Particularly if `a` were time-varying, there is potential for all 32 bits to be used. There is a tradeoff here between:
+This gives a much closer approximation to the floating-point behaviour.
+
+As before, we must check for overflow, and for the first time in these examples, we are here getting close to overflow with 32-bit integers.  The expression `(4096-a)*(AudioIn1()<<7)` is `(unsigned 12-bit) * (signed 12-bit) << 7`, giving a signed 31-bit result, to which `a*y`, 24-bit value, is added, potentially using all 32 bits. There is a tradeoff here between:
 - precision with which `a` can be specified (here, 12-bit)
 - bit-depth of the audio signal (here, 12-bit)
 - amount of amplification/attenuation to reduce roundoff
 
-These techniques are used in the filtering of knob/CV values within ComputerCard.
 
-Three, more advanced, comments:
+Three further comments:
 - Sometimes, depending on the filter, the increased precision offered by the `int64_t` type is needed, though this is slower than `int32_t`.
 - On the RP2040, the `>>` operation on signed types rounds to negative infinity. Sometimes it may be worth adding a constant into the filter expression to alter this behaviour to round-to-nearest.  
-- Sometimes, depending on the filter, the increased precision offered by the `int64_t` type is needed, though this is slower than `int32_t`.- The roundoff error on a low-pass filter such as this produces a very primative hysteresis-like effect, which may occasionally be useful
+- The roundoff error on a low-pass filter such as this produces a very primative hysteresis-like effect, which may occasionally be useful. This is used in ComputerCard to reduce noise/jitter in knob values.
 
-### 2. Expensive calculations
-In brief, the two options are to either split the calculations up in to parts small enough to do in successive `ProcessSample` functions, or offload long calculations onto the second RP2040 core.
-
-### 3. USB
-In brief, this needs to be done on a different core from the audio. See the `midi_device` example for how this could currently be done. I'm planning to add some multicore stuff into ComputerCard itself, in due course, including an option to run the audio callback on core1 not the default core0.
+### 2. Lengthy calculations
+In brief, the two options are to either split the calculations up in to parts small enough to do in successive `ProcessSample` functions, or offload long calculations onto the second RP2040 core. For USB processing, the TinyUSB function `tud_task` may take longer than one sample time, and so this needs to be done on a different core from the audio. See the `midi_device` example for how this could currently be done. I'm planning to add some multicore stuff into ComputerCard itself, in due course, including an option to run the audio callback on core1, not the default core0.
 
 ### 4. Putting code in RAM
 In brief, surround names in function definitions by  [__not_in_flash_func()](https://www.raspberrypi.com/documentation/pico-sdk/runtime.html#group_pico_platform_1gad9ab05c9a8f0ab455a5e11773d610787). This part of the API seems to be evolving.
