@@ -22,7 +22,7 @@ Behind the scenes, the ComputerCard class:
 ## Usage:
 Basic usage is intended to be extremely simple: for example, here is complete code for a Sample and Hold card:
 
-```{.cpp}
+```c++
 #include "ComputerCard.h"
 
 // Derive a new class from ComputerCard
@@ -116,7 +116,7 @@ Thanks to divmod for figuring this out and writing this section
 ### Code
 - As a start you can just copy the Sample&Hold example from the following file into your sketch (the .ino file): https://raw.githubusercontent.com/TomWhitwell/Workshop_Computer/refs/heads/main/Demonstrations%2BHelloWorlds/PicoSDK/ComputerCard/examples/sample_and_hold/main.cpp
 - Replace the `main` function with the following code:
-```
+```c++
 SampleAndHold sh;
 
 void setup() {
@@ -155,18 +155,22 @@ Native integer calculations on the RP2040 - that is, addition, subtraction and m
 
 At the specified 133MHz clock rate, floating point operations take around 500ns, allowing at most 40 (at likely rather fewer) per sample. Even a single call to more complicated floating point functions such as `sin` is too expensive to run every sample. For this reason, ComputerCard does not use floating-point variables.
 
-Since the Computer uses a 12-bit DAC, the approach I have taken instead is to use signed 16-bit integers to store signals, but usually signed 32-bit integers (`int32_t`, as defined in the `cstdint` header) to process them. 
+Since the Computer uses a 12-bit DAC, the approach I have taken instead is to use signed 16-bit integers to store signals, but usually signed 32-bit integers (`int32_t`, as defined in the `cstdint` header) to process them. The hardware integer multiply on the RP2040 makes many such operations very efficient. 
 
-### An example: mixing audio signals
+### Example: crossfading audio signals
 Let's look at an example of code which averages the two audio inputs and puts this mixed signal onto both audio outputs:
 
 $$\mbox{out} = \frac{\mbox{in}_1 + \mbox{in}_2}{2}$$
-```
+```c++
 int16_t mix = (AudioIn1() + AudioIn2()) >> 1;
 AudioOut1(mix);
 AudioOut2(mix);
 ```
-Because integer division is emulated (and therefore slower) on the RP2040, where possible I replace divisions with multiply (`*`) and bit-shift-right (`>>`), which on the RP2040 acts as a divide-by-power-of-two on both signed and unsigned integers.[^1] 
+Because integer division is emulated (and therefore slower) on the RP2040, where possible I replace divisions with multiply (`*`) and bit-shift-right (`>>`), which on the RP2040 acts as a divide-by-power-of-two on both signed and unsigned integers, albeit with different rounding behaviour [^1] 
+
+
+[^1]: For signed types `>>` is implementation defined in C++, but GCC compiles to ARM arithmetic shift right (ASR), which divides rounding to negative infinity.  C++ divide (`/`) rounds towards zero. 
+
 
 A constant concern with integer operations such as these is the possibility of integer overflow (exceeding the representable range of integers), and the wrapping of values that occurs in this case. 
 - C++ integer promotion rules mean that the `int16_t` return value of `AudioIn` functions (in fact only containing a 12-bit range -2048 to 2047) are promoted to the (32-bit signed) `int` before operations, the relevant wrapping values are $\pm 2^{31}$, far larger than any integers used here.
@@ -174,7 +178,7 @@ A constant concern with integer operations such as these is the possibility of i
 - Integer values passed to the `AudioOut` functions will wrap if they are outside the 12-bit range -2048 to 2047. In this case, it is relatively easy to show that this will not occur, but if there is any doubt, it is worth clamping the variable before sending it to the output functions.
 
 Adding these updates, we have:
-```
+```c++
 int32_t mix = (AudioIn1() + AudioIn2()) >> 1;
 
 if (mix<-2048) mix=-2048;
@@ -185,29 +189,86 @@ AudioOut2(mix);
 ```
 
 Let's now extend our program to use the main knob value $k$ to specify a mix of the two audio inputs that are send to the outputs.
-In an equation (or in floating-point code) $k$ would range from $0$ to $1$ and we would calculate
-$$ \mbox{out} = (1-k)\\, \mbox{in}_1 + k\\, \mbox{in}_2.$$
+In an equation (or in floating-point code) $k$ would range from $0$ to $1$ and we would calculate [^2]
+
+$$ \mbox{out} = (1-k)\\, \mbox{in}_1 + k\\, \mbox{in}_2.$$ 
+
+[^2]: Ideally, for audio signals, we'd use an energy-preserving crossfade rather than this linear one.
 
 In ComputerCard, the knobs return positive 12-bit values 0-4095, and we instead calculate: 
-```
+```c++
 int32_t k = KnobVal(Knob::Main);
 int32_t mix = (AudioIn1()*(4095-k) + AudioIn2()*(k)) >> 12;
 
 AudioOut1(mix);
 AudioOut2(mix);
 ```
+
+The choice of `4095 - k` not `4096 - k` means that this crossfade perfectly isolates each of the two inputs at the end of travel, at the expense of a very slight decline ($4095/4096$) in anplitude.
+
 Let's again examine the possibility of overflow. The multiply operations here calculate the product of signed 12-bit and unsigned 12-bit numbers, resulting in a signed 24-bit number. We then add two of these, which would in general produce up to a signed 25-bit number, but here because of the `k` and `4095-k` multiplicands, the sum is in fact signed 24-bit. This is well within the signed 32-bit range of the integer type, so no risk of overflow during the evaluation of the expression. Shifting right by 12 bits produces a signed 12-bit result (-2048 to 2047) which will not wrap in the `AudioOut` functions.
 
 
-[^1]: In some cases, the compiler may be able to do this optimisation automatically.
+### Example: first-order IIR LPF
+One of the most common DSP operations is a first-order filter, such as the IIR lowpass filter
 
+$$ y[n] = a y[n-1] + b x[n] $$
 
-### 2. Sharing expensive calculations
-TBC
+with filter coefficients $a$ ($0 < a < 1$) and $b$. For unity gain at DC, $b = 1-a$, and so our filter equation
+
+$$ y[n] = a y[n-1] + (1-a) x[n] $$
+
+looks almost identical to the crossfade example above. Choosing the input data $x$ to be the first audio input, and sending the filter output $y$ to the first audio output, we might write
+
+```c++
+int32_t a = 4089;
+y = (a*y + (4096-a)*AudioIn1()) >> 12;
+
+int32_t out = y;
+if (out<-2048) out=-2048;
+if (out>2047) out=2047;
+AudioOut1(out);
+```
+where 
+- the filter coefficient value $a = 0.9983 \approx 4089/2^{12}$ here has been chosen arbitrarily,
+- `y` is assumed to be an `int32_t` that persists between calls to `ProcessSample()` (likely a class member), and
+- clipping has been applied to the filter output, as it is not obvious that this will always be in the 12-bit range -2048 to 2047.
+
+However, as well as integer overflow, another consideration with integer/fixed-point arithmetic is roundoff error. Suppose that in the code above, previous audio input has resulted in `y` having the value 500, and the audio input then falls silent (`AudioIn1` returns zero). For this low-pass filter, we would expect `y` to drop to zero exponentially. The relevant expression becomes:
+```c++
+y = (4089*y) >> 12;
+```
+Repeated evaluation of this shows that the decay of `y` from an initial value of 500 is far from exponential - in fact it drops linearly to zero! In this problem the amount by which `y` decreases per sample is between 0 and 1 if evaluated exactly, but in integer arithmetic this decay must be an integer and is quantised to a decay of 1 per sample.
+
+This can be mitigated by amplifying the signal going into the filter, the attenuating the filter output by the same amount. Here we amplify and attenuate by a factor of $2^7 = 128$:
+```c++
+int32_t a = 4089;
+y = (a*y + (4096-a)*(AudioIn1()<<7)) >> 12;
+
+int32_t out = y>>7;
+if (out<-2048) out=-2048;
+if (out>2047) out=2047;
+
+AudioOut1(out);
+```
+As before, we must check for overflow, and for the first time in these examples, we are here getting close to overflow with 32-bit integers.  The expression `(4096-a)*(AudioIn1()<<7)` is `(unsigned 12-bit) * (signed 12-bit) << 7`, giving a signed 31-bit result, to which `a*y`, 24-bit value, is added. Particularly if `a` were time-varying, there is potential for all 32 bits to be used. There is a tradeoff here between:
+- precision with which `a` can be specified (here, 12-bit)
+- bit-depth of the audio signal (here, 12-bit)
+- amount of amplification/attenuation to reduce roundoff
+
+These techniques are used in the filtering of knob/CV values within ComputerCard.
+
+Three, more advanced, comments:
+- Sometimes, depending on the filter, the increased precision offered by the `int64_t` type is needed, though this is slower than `int32_t`.
+- On the RP2040, the `>>` operation on signed types rounds to negative infinity. Sometimes it may be worth adding a constant into the filter expression to alter this behaviour to round-to-nearest.  
+- Sometimes, depending on the filter, the increased precision offered by the `int64_t` type is needed, though this is slower than `int32_t`.- The roundoff error on a low-pass filter such as this produces a very primative hysteresis-like effect, which may occasionally be useful
+
+### 2. Expensive calculations
+In brief, the two options are to either split the calculations up in to parts small enough to do in successive `ProcessSample` functions, or offload long calculations onto the second RP2040 core.
 
 ### 3. USB
-TBC
+In brief, this needs to be done on a different core from the audio. See the `midi_device` example for how this could currently be done. I'm planning to add some multicore stuff into ComputerCard itself, in due course, including an option to run the audio callback on core1 not the default core0.
 
 ### 4. Putting code in RAM
-TBC
+In brief, surround names in function definitions by  [__not_in_flash_func()](https://www.raspberrypi.com/documentation/pico-sdk/runtime.html#group_pico_platform_1gad9ab05c9a8f0ab455a5e11773d610787). This part of the API seems to be evolving.
 
