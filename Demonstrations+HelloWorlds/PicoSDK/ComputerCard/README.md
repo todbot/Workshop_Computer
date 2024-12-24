@@ -136,24 +136,19 @@ void loop() {
 
 # Programming for ComputerCard
 
-ComputerCard is designed for processing of audio signals (with bandwidths up to ~20kHz) at low latency. To do this, ComputerCard calculates audio samples individually, calling the users `ProcessSample()` function at 48kHz. The 'ProcessSample()' function for one sample must finish before the next sample is due, meaning that the user's code for each sample must execute in ~20μs.
+ComputerCard is designed to allow audio signals (with bandwidths up to ~20kHz) to be processed at low latency. To do this, the computations for each sample must be calculated individually, by calling the users `ProcessSample()` function at 48kHz. The `ProcessSample()` function for one sample must finish before the one for the next sample starts, meaning that the user's code for each sample must execute in 1/48000th of a second, or ~20μs. This is perfectly feasible on the RP2040, but requires some attention to code performance. Specifically;
 
-ComputerCard can of course be used for programs using pulse/CV signals only - but, the fixed 48kHz sample rate means that these programs still need to abide by the same stringent audio timing requirements.
-
-The RP2040 microcontroller in the Computer is a 133MHz dual-core chip, with hardware multiplier but no hardware floating point support. Given these specifications, the ~20μs-per-sample limit has several consequences:
-
-1. most calculations must be done with integers, rather than floating point.
-2. relatively expensive calculations must be split between `ProcessSample` calls to ensure than no one call goes above the maximum duration.
-3. USB communication must be processed on a different core of the RP2040 to the audio
-4. Particularly for larger programs, it may be necessary to force the code called by `ProcessSample` into RAM, so that delays in fetching of code from the flash card do not cause `ProcessSample()` to exceed its allowed time.
+1. for most cards, calculations must be done with integers rather than floating point.
+2. relatively lengthy calculations must be done on a different RP2040 core to the audio, or split between `ProcessSample` calls to ensure than no one call goes above the maximum duration. In particular, USB handling must be on a different core.
+3. Particularly for larger programs, it may be necessary to force the code called by `ProcessSample` into RAM, so that delays in fetching of code from the flash card do not cause `ProcessSample()` to exceed its allowed time.
 
 We'll discuss each of these below
 
 ## 1. Integer calculations
 
-Native integer calculations on the RP2040 - that is, addition, subtraction and multiplication of at most 32-bit numbers - are around [35 times faster](https://forums.raspberrypi.com/viewtopic.php?t=308794#p1848188) than the software-emulated floating point equivalents.
+Floating-point operations on the RP2040 are software emulated, and are around [35 times slower](https://forums.raspberrypi.com/viewtopic.php?t=308794#p1848188) than the native 32-bit integer addition, subtraction and multiplication.
 
-At the specified 133MHz clock rate, floating point operations take around 500ns, allowing at most 40 (in practice, likely rather fewer) per sample. Even a single call to more complicated floating point functions such as `sin` is too expensive to run every sample. For this reason, ComputerCard does not use floating-point variables.
+At the specified 133MHz clock rate, floating point operations take around 500ns, allowing at most 40 (in practice, likely rather fewer) per sample. Even a single call to more complicated floating point functions such as `sin` takes too long to run in the `ProcessSample` function. For this reason, the ComputerCard API does not use floating-point variables.
 
 Since the Computer uses a 12-bit DAC, the approach I have taken instead is to use signed 16-bit integers to store signals, but usually signed 32-bit integers (`int32_t`, as defined in the `cstdint` header) to process them. The hardware integer multiply on the RP2040 makes many such operations very efficient. 
 
