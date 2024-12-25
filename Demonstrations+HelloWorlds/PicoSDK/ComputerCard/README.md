@@ -15,12 +15,12 @@ Behind the scenes, the ComputerCard class:
 - Applies smoothing, some simple hysteresis, and range extension to knobs and CV, to provide relatively low-noise values that span the whole range (-2048 to 2047). Knob/CV values are updated every audio frame.
 - If enabled, determines whether jacks are connected to the six input sockets by driving the 'normalisation probe' pin and detecting its signal on the inputs.
 - Manages PWM signals for CV output and brightness control of the six LEDs.
-- Sends audio outputs to external DAC
-- Reads EEPROM calibration, if set, to for calibrated MIDI note CV outputs.
+- Sends audio outputs to external DAC.
+- Reads EEPROM calibration, if set, for calibrated MIDI note CV outputs.
 
 
 ## Usage:
-Basic usage is intended to be extremely simple: for example, here is complete code for a Sample and Hold card:
+Basic usage is intended to be extremely simple. For example, here is complete code for a Sample and Hold card:
 
 ```c++
 #include "ComputerCard.h"
@@ -29,17 +29,17 @@ Basic usage is intended to be extremely simple: for example, here is complete co
 class SampleAndHold : public ComputerCard
 {
 public:
-	virtual void ProcessSample() // executed every sample at 48kHz
+	virtual void ProcessSample() // executed every sample, at 48kHz
 	{
-    	// Update audio out 1 with value from audio in 1,
-        // only if rising edge seen on pulse 1 input
+		// Update audio out 1 with value from audio in 1,
+		// only if rising edge seen on pulse 1 input
 		if (PulseIn1RisingEdge()) AudioOut1(AudioIn1());
 	}
 };
 
 int main()
 {
-    // Create and run our new Sample and Hold
+	// Create and run our new Sample and Hold
 	SampleAndHold sh;
 	sh.Run();
 }
@@ -62,7 +62,7 @@ More generally, the process is:
 
 
 ### Notes
-- Make sure execution of `ComputerCard::ProcessSample` always runs quickly enough that it has returned before the next execution begins (~20μs). (See the [guidance below](#programming) on achieving this)
+- Make sure execution of `ComputerCard::ProcessSample` always runs quickly enough that it has returned before the next execution begins (1/48kHz = ~20μs). (See the [guidance below](#programming) on achieving this)
 - It is anticipated that only one instance of a ComputerCard will be created.
 
 ### Limitations / potential future improvements
@@ -70,6 +70,7 @@ More generally, the process is:
     - In particular, this prevents the Pico SDK USB stdio from being used, as this code must run on core0 and interferes with the 48kHz audio callback
 - No built-in delta-sigma modulation of CV outputs, limiting CV precision of 1V/octave signals to about 7 cents
 - There is no way to configure CV/knob smoothing filters.
+- There is no way to change the sample rate
 
 ## [Using the RPi Pico SDK (Linux command line)](#pico-sdk)
 - Clone and install the [RPi Pico SDK](https://github.com/raspberrypi/pico-sdk)
