@@ -4,11 +4,12 @@ ComputerCard is a  [MIT licensed](https://opensource.org/license/mit) header-onl
 manages the hardware aspects of the [Music Thing Modular Workshop
 System Computer](https://www.musicthing.co.uk/workshopsystem/).
 
-ComputerCard was designed to work with the [RPi Pico SDK](https://github.com/raspberrypi/pico-sdk) but also works with the Arduino environment using the earlephilhower RP2040 board [as described below](#arduino-ide)
-
 It aims to present a very simple C++ interface for card programmers 
 to use the jacks, knobs, switch and LEDs, for programs running at
 a fixed 48kHz audio sample rate.
+
+ComputerCard was designed to work with the [RPi Pico SDK](https://github.com/raspberrypi/pico-sdk) but also works with the Arduino environment using the earlephilhower RP2040 board [as described below](#arduino-ide)
+
 
 Behind the scenes, the ComputerCard class:
 - Manages the ADC and external multiplexer to collect analogue samples from audio inputs, CV inputs, knobs and switch.
