@@ -61,7 +61,17 @@ More generally, the process is:
 
 7. Call the `ComputerCard::Run()` method on this instance to start audio processing. `ComputerCard::Run()` is blocking (never returns).
 
+### Examples
+ComputerCard contains a several of examples in the `examples/` directory.
+For beginners just starting with ComputerCard, the first example to look at is `passthrough` to introduce the basic functions, followed by `sample_and_hold` for typical usage of these in a 'real' card.
 
+- `midi_device` — demo of USB MIDI being used alongside ComputerCard, sending Computer knob values to the USB host as CC messages
+- `normalisation_probe` — minimal demo of normalisation probe, which lights LEDs when jacks are plugged in
+- `passthrough` — simple demonstration of using the jacks, knobs, switch and LEDs.
+- `sample_and_hold` — dual sample and hold, demonstrating jacks, normalisation probe and pseudo-random numbers
+- `sine_wave` — 440Hz sine wave generator, demonstrating scanning and interpolation of a lookup table using integer arithmetic
+- `talkie_pcm` — not a good pedagogical example, but a hack of the [TalkiePCM](https://github.com/pschatzmann/TalkiePCM/) speech library to make it interface with ComputerCard.
+    
 ### Notes
 - Make sure execution of `ComputerCard::ProcessSample` always runs quickly enough that it has returned before the next execution begins (1/48kHz = ~20μs). (See the [guidance below](#programming) on achieving this)
 - It is anticipated that only one instance of a ComputerCard will be created.
@@ -168,7 +178,7 @@ Because the RP2040 has hardware multiply and shift instructions, but not a divis
 [^1]: albeit with different rounding behaviour: for signed types `>>` is implementation-defined in C++, but GCC compiles to the ARM `ASR` (arithmetic shift right) instruction, which divides rounding to negative infinity.  C++ divide (`/`) rounds towards zero. 
 
 
-A ever-present concern with integer operations such as these is the possibility of integer overflow (exceeding the representable range of integers), and the wrapping of values that occurs in this case. 
+An ever-present concern with integer operations such as these is the possibility of integer overflow (exceeding the representable range of integers), and the wrapping of values that occurs in this case. 
 - C++ integer promotion rules mean that the `int16_t` return value of `AudioIn` functions (in fact only containing a 12-bit range -2048 to 2047) are promoted to the (32-bit signed) `int` before operations. The relevant wrapping values are therefore $\pm 2^{31}$, far larger than any integers used here.
 - Saving `mix` to a 16-bit integer introduces wrapping at $\pm 2^{15}$, again not a problem here, given the 12-bit outputs of the `AudioIn` functions. In fact, it would probably be better to use a CPU-native 32-bit integer to store `mix`
 - Integer values passed to the `AudioOut` functions will wrap if they are outside the 12-bit range -2048 to 2047. In this case, it is relatively easy to show that this will not occur, but if there is any doubt, it is worth clamping the variable before sending it to the output functions.
@@ -199,6 +209,8 @@ int32_t mix = (AudioIn1()*(4095-k) + AudioIn2()*(k)) >> 12;
 AudioOut1(mix);
 AudioOut2(mix);
 ```
+
+Even though `k` is non-negative, we use an signed `int32_t` type (not `uint32_t`) because operations involving both signed and unsigned integers will often result in the signed type being converted to unsigned, which is not desired here. It's easiest just to keep everything as `int32_t`.
 
 The choice of `4095 - k` not `4096 - k` means that this crossfade perfectly isolates each of the two inputs at the ends of knob travel, at the expense of a very slight decline ($4095/4096$) in amplitude.
 
