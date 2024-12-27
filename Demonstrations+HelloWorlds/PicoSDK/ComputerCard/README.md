@@ -1,19 +1,17 @@
 # ComputerCard
 
-ComputerCard is a  [MIT licensed](https://opensource.org/license/mit) header-only C++ library, providing a framework that
+ComputerCard is a  [MIT licensed](https://opensource.org/license/mit) header-only C++ library, that
 manages the hardware aspects of the [Music Thing Modular Workshop
 System Computer](https://www.musicthing.co.uk/workshopsystem/).
 
-It aims to present a very simple C++ interface for card programmers 
-to use the jacks, knobs, switch and LEDs, for programs running at
-a fixed 48kHz audio sample rate.
+It aims to present a very simple C++ framework for card programmers to use the jacks, knobs, switch and LEDs, for programs running at a fixed 48kHz audio sample rate.
 
 ComputerCard was designed to work with the [RPi Pico SDK](https://github.com/raspberrypi/pico-sdk) but also works with the Arduino environment using the earlephilhower RP2040 board [as described below](#arduino-ide)
 
 
 Behind the scenes, the ComputerCard class:
 - Manages the ADC and external multiplexer to collect analogue samples from audio inputs, CV inputs, knobs and switch.
-- Applies smoothing, some simple hysteresis, and range extension to knobs and CV, to provide relatively low-noise values that span the whole range (-2048 to 2047). Knob/CV values are updated every audio frame.
+- Applies smoothing, some simple hysteresis, and range extension to knobs and CV, to provide relatively low-noise values that span the whole range (-2048 to 2047 for jacks, 0 to 4095 for knobs). Knob/CV values are updated every audio frame.
 - If enabled, determines whether jacks are connected to the six input sockets by driving the 'normalisation probe' pin and detecting its signal on the inputs.
 - Manages PWM signals for CV output and brightness control of the six LEDs.
 - Sends audio outputs to external DAC.
@@ -47,7 +45,7 @@ int main()
 ```
   
 More generally, the process is:
-1. Add `#include "ComputerCard.h"` to each cpp file that uses it. If linking more than one source file, use `#define COMPUTERCARD_NOIMPL` before this include in all but one file, so that the implementation is only included once.
+1. Add `#include "ComputerCard.h"` to each source file that uses it. If linking more than one source file, use `#define COMPUTERCARD_NOIMPL` before this include in all but one file, so that the implementation is only included once.
 
 2. Derive a new class (such as the `SampleAndHold` class above) from the abstract `ComputerCard` class, representing the particular card being written.
 
@@ -62,14 +60,14 @@ More generally, the process is:
 7. Call the `ComputerCard::Run()` method on this instance to start audio processing. `ComputerCard::Run()` is blocking (never returns).
 
 ### Examples
-ComputerCard contains a several of examples in the `examples/` directory.
+ComputerCard contains several examples in the `examples/` directory.
 For beginners just starting with ComputerCard, the first example to look at is `passthrough` to introduce the basic functions, followed by `sample_and_hold` for typical usage of these in a 'real' card.
 
-- `midi_device` — demo of USB MIDI being used alongside ComputerCard, sending Computer knob values to the USB host as CC messages
-- `normalisation_probe` — minimal demo of normalisation probe, which lights LEDs when jacks are plugged in
+- `midi_device` — example of USB MIDI being used alongside ComputerCard. Sends Computer knob values to the USB host as CC messages.
+- `normalisation_probe` — minimal example of patch cable detection. LEDs are lit when corresponding sockets have a jack plugged in.
 - `passthrough` — simple demonstration of using the jacks, knobs, switch and LEDs.
 - `sample_and_hold` — dual sample and hold, demonstrating jacks, normalisation probe and pseudo-random numbers
-- `sine_wave` — 440Hz sine wave generator, demonstrating scanning and interpolation of a lookup table using integer arithmetic
+- `sine_wave` — 440Hz sine wave generator, demonstrating scanning and linear interpolation of a lookup table using integer arithmetic
 - `talkie_pcm` — not a good pedagogical example, but a hack of the [TalkiePCM](https://github.com/pschatzmann/TalkiePCM/) speech library to make it interface with ComputerCard.
     
 ### Notes
@@ -150,7 +148,7 @@ void loop() {
 ComputerCard is designed to allow audio signals (with bandwidths up to ~20kHz) to be processed at low latency. To do this, the computations for each sample must be calculated individually, by calling the users `ProcessSample()` function at 48kHz. The `ProcessSample()` function for one sample must finish before the one for the next sample starts, meaning that the user's code for each sample must execute in 1/48000th of a second, or ~20μs. This is perfectly feasible on the RP2040, but requires some attention to code performance. Specifically;
 
 1. for most cards, calculations must be done with integers rather than floating point.
-2. relatively lengthy calculations must be done on a different RP2040 core to the audio, or split between `ProcessSample` calls to ensure than no one call goes above the maximum duration. In particular, USB handling must be on a different core.
+2. relatively lengthy calculations (more than ~20μs) must be done on a different RP2040 core to the audio, or split between `ProcessSample` calls to ensure than no one call goes above the maximum duration. In particular, USB handling must be on a different core.
 3. Particularly for larger programs, it may be necessary to force the code called by `ProcessSample` into RAM, so that delays in fetching of code from the flash card do not cause `ProcessSample()` to exceed its allowed time.
 
 We'll discuss each of these below
@@ -161,14 +159,14 @@ Floating-point operations on the RP2040 are software emulated, and are around [3
 
 At the specified 133MHz clock rate, floating point operations take around 500ns, allowing at most 40 (in practice, likely rather fewer) per sample. Even a single call to more complicated floating point functions such as `sin` takes too long to run in the `ProcessSample` function. For this reason, the ComputerCard API does not use floating-point variables.
 
-Since the Computer uses a 12-bit DAC, the approach I have taken instead is to use signed 16-bit integers to store signals (in a fixed-point format) and 32-bit integers (`int32_t`, as defined in the `cstdint` header) to process them. The hardware 32-bit integer multiply on the RP2040 makes many operations on such fixed-point number very efficient. 
+The approach I have taken instead is to use signed 32-bit integers (`int32_t`, as defined in the `cstdint` header) to process samples, essentially using a fixed-point number representation. The hardware 32-bit integer multiply on the RP2040 makes most operations on such numbers very efficient. 
 
 ### Example: crossfading audio signals
 Let's look at an example of code which averages the two audio inputs and puts this mixed signal onto both audio outputs:
 
 $$\mbox{out} = \frac{\mbox{in}_1 + \mbox{in}_2}{2}$$
 ```c++
-int16_t mix = (AudioIn1() + AudioIn2()) >> 1;
+int32_t mix = (AudioIn1() + AudioIn2()) >> 1;
 AudioOut1(mix);
 AudioOut2(mix);
 ```
@@ -180,21 +178,20 @@ Because the RP2040 has hardware multiply and shift instructions, but not a divis
 
 An ever-present concern with integer operations such as these is the possibility of integer overflow (exceeding the representable range of integers), and the wrapping of values that occurs in this case. 
 - C++ integer promotion rules mean that the `int16_t` return value of `AudioIn` functions (in fact only containing a 12-bit range -2048 to 2047) are promoted to the (32-bit signed) `int` before operations. The relevant wrapping values are therefore $\pm 2^{31}$, far larger than any integers used here.
-- Saving `mix` to a 16-bit integer introduces wrapping at $\pm 2^{15}$, again not a problem here, given the 12-bit outputs of the `AudioIn` functions. In fact, it would probably be better to use a CPU-native 32-bit integer to store `mix`
-- Integer values passed to the `AudioOut` functions will wrap if they are outside the 12-bit range -2048 to 2047. In this case, it is relatively easy to show that this will not occur, but if there is any doubt, it is worth clamping the variable before sending it to the output functions.
+- Saving `mix` to a 32-bit integer introduces wrapping at $\pm 2^{31}$, again not a problem here, given the 12-bit outputs of the `AudioIn` functions. (In fact, we could use an `int16_t` for the `mix` variable, but there is no need to do so.)
 
-Incorporating these updates, we have:
+In addition to this, **integer values passed to the `AudioOut` functions will wrap if they are outside the 12-bit range -2048 to 2047**. In the present example it is relatively easy to show that this will not occur, but if there is any doubt, it is worth clamping the variable before sending it to the output functions, as follows:
 ```c++
 int32_t mix = (AudioIn1() + AudioIn2()) >> 1;
 
-if (mix<-2048) mix=-2048;
-if (mix>2047) mix=2047;
+if (mix<-2048) mix = -2048;
+if (mix>2047) mix = 2047;
 
 AudioOut1(mix);
 AudioOut2(mix);
 ```
 
-Let's now extend our program so that it uses the main knob to specify a crossfade of the two audio inputs that are send to the outputs.
+Let's now extend our program so that it uses the main knob to crossfade between the two audio inputs.
 Denoting the knob value as $k$, varying from 0 to 1, our crossfade would be [^2]
 
 $$ \mbox{out} = (1-k)\\, \mbox{in}_1 + k\\, \mbox{in}_2.$$ 
