@@ -50,7 +50,7 @@ public:
 		else if (Connected(Input::CV1))
 		{
 			thing1 = cv1 * x >> 12;
-			thing2 = y - 2048;
+			thing2 = y >> 1;
 		}
 		else if (Connected(Input::CV2))
 		{
@@ -60,7 +60,7 @@ public:
 		else
 		{
 			thing1 = noise * x >> 12;
-			thing2 = y - 2048;
+			thing2 = y>>1;
 		};
 
 		// simple crossfade
