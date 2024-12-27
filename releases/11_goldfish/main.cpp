@@ -1,35 +1,156 @@
 #include "ComputerCard.h"
 
+#define BUFFER_SIZE 44100
+
+#define SEMI_TONE static_cast<int32_t>(1 / 12) << 12
+#define WHOLE_TONE static_cast<int32_t>(2 / 12) << 12
+
+uint32_t __not_in_flash_func(rnd12)()
+{
+	static uint32_t lcg_seed = 1;
+	lcg_seed = 1664525 * lcg_seed + 1013904223;
+	return lcg_seed >> 20;
+}
+
 /// Goldfish
 class Goldfish : public ComputerCard
 {
 public:
-	
+	Goldfish() {
+		// constructor
+	};
+
 	virtual void ProcessSample()
 	{
-		// Transfer audio/CV/Pulse inputs directly to outputs
-		AudioOut1(AudioIn1());
-		AudioOut2(AudioIn2());
 
-		CVOut1(CVIn1());
-		CVOut2(CVIn2());
+		int16_t noise = rnd12() - 2048;
+		Switch s = SwitchVal();
 
-		PulseOut1(PulseIn1());
-		PulseOut2(PulseIn2());
+		int32_t x = KnobVal(Knob::X);
+		int32_t y = KnobVal(Knob::Y);
+		int32_t main = KnobVal(Knob::Main);
 
-		// Get switch position and set LEDs 0, 2, 4 accordingly
-		int s = SwitchVal();
-		LedOn(4, s == Switch::Down);
-		LedOn(2, s == Switch::Middle);
-		LedOn(0, s == Switch::Up);
+		int16_t cvMix = 0;
+		int16_t thing1 = 0;
+		int16_t thing2 = 0;
+		bool clockPulse = false;
 
-		// Set LED 1, 3, 5 brightness to knob values
-		LedBrightness(1, KnobVal(Knob::Main));
-		LedBrightness(3, KnobVal(Knob::X));
-		LedBrightness(5, KnobVal(Knob::Y));
-	}
+		// Read inputs
+		int16_t cv1 = CVIn1();		 // -2048 to 2047
+		int16_t cv2 = CVIn2();		 // -2048 to 2047
+		int16_t audioL = AudioIn1(); // -2048 to 2047
+		int16_t audioR = AudioIn2(); // -2048 to 2047
+
+		if (Connected(Input::CV1) && Connected(Input::CV2))
+		{
+			thing1 = cv1 * x >> 12;
+			thing2 = cv2 * y >> 12;
+		}
+		else if (Connected(Input::CV1))
+		{
+			thing1 = cv1 * x >> 12;
+			thing2 = y - 2048;
+		}
+		else if (Connected(Input::CV2))
+		{
+			thing1 = noise * x >> 12;
+			thing2 = cv2 * y >> 12;
+		}
+		else
+		{
+			thing1 = noise * x >> 12;
+			thing2 = y - 2048;
+		};
+
+		// simple crossfade
+		cvMix = (thing1 * (4095 - main)) + (thing2 * main) >> 12;
+
+		CVOut1(cvMix);
+
+		clockRate = ((4095 - x) * 48000 * 2 + 50) >> 12;
+
+		clock++;
+		if (clock > clockRate)
+		{
+			clock = 0;
+			PulseOut1(true);
+			LedOn(4, true);
+			pulseTimer1 = 200;
+			clockPulse = true;
+		};
+
+		if ((cvMix > (y - 2048)) && (clockPulse || PulseIn1RisingEdge()))
+		{
+			PulseOut2(true);
+			pulseTimer2 = 200;
+			LedOn(5, true);
+		};
+
+		if (Connected(Input::Pulse1))
+		{
+			// connected
+			if (PulseIn1RisingEdge())
+			{
+				CVOut2(cvMix);
+				pulseTimer1 = 200;
+			};
+		}
+		else
+		{
+			// not connected
+			if (clockPulse)
+			{
+				CVOut2(cvMix);
+			}
+		}
+
+		// If a pulse is ongoing, keep counting until it ends
+		if (pulseTimer1)
+		{
+			pulseTimer1--;
+			if (pulseTimer1 == 0) // pulse ends
+			{
+				PulseOut1(false);
+				LedOff(4);
+			}
+		};
+
+		// If a pulse is ongoing, keep counting until it ends
+		if (pulseTimer2)
+		{
+			pulseTimer2--;
+			if (pulseTimer2 == 0) // pulse ends
+			{
+				PulseOut2(false);
+				LedOff(5);
+			}
+		};
+	};
+
+private:
+	int16_t audioBufferL[BUFFER_SIZE] = {0};
+	int16_t audioBufferR[BUFFER_SIZE] = {0};
+	int clockRate;
+	int clock = 0;
+	int pulseTimer1 = 200;
+	int pulseTimer2;
+	bool clockPulse = false;
+
+	constexpr static int majorScale[7] = {
+		0,
+		WHOLE_TONE,
+		WHOLE_TONE + WHOLE_TONE,
+		WHOLE_TONE + WHOLE_TONE + SEMI_TONE,
+		WHOLE_TONE + WHOLE_TONE + SEMI_TONE + WHOLE_TONE,
+		WHOLE_TONE + WHOLE_TONE + SEMI_TONE + WHOLE_TONE + WHOLE_TONE,
+		WHOLE_TONE + WHOLE_TONE + SEMI_TONE + WHOLE_TONE + WHOLE_TONE + WHOLE_TONE};
+
+	int16_t quantizedCVOut2(int16_t in) {
+		
+
+		return in;
+	};
 };
-
 
 int main()
 {
@@ -37,5 +158,3 @@ int main()
 	gf.EnableNormalisationProbe();
 	gf.Run();
 }
-
-  
