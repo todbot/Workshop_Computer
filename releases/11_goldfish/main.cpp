@@ -1,4 +1,5 @@
 #include "ComputerCard.h"
+#include "quantiser.h"
 
 #define BUFFER_SIZE 44100
 
@@ -91,7 +92,7 @@ public:
 			// connected
 			if (PulseIn1RisingEdge())
 			{
-				CVOut2(cvMix);
+				CVOut2MIDINote(quantSample(cvMix));
 				pulseTimer1 = 200;
 			};
 		}
@@ -100,7 +101,7 @@ public:
 			// not connected
 			if (clockPulse)
 			{
-				CVOut2(cvMix);
+				CVOut2MIDINote(quantSample(cvMix));
 			}
 		}
 
@@ -135,21 +136,6 @@ private:
 	int pulseTimer1 = 200;
 	int pulseTimer2;
 	bool clockPulse = false;
-
-	constexpr static int majorScale[7] = {
-		0,
-		WHOLE_TONE,
-		WHOLE_TONE + WHOLE_TONE,
-		WHOLE_TONE + WHOLE_TONE + SEMI_TONE,
-		WHOLE_TONE + WHOLE_TONE + SEMI_TONE + WHOLE_TONE,
-		WHOLE_TONE + WHOLE_TONE + SEMI_TONE + WHOLE_TONE + WHOLE_TONE,
-		WHOLE_TONE + WHOLE_TONE + SEMI_TONE + WHOLE_TONE + WHOLE_TONE + WHOLE_TONE};
-
-	int16_t quantizedCVOut2(int16_t in) {
-		
-
-		return in;
-	};
 };
 
 int main()
