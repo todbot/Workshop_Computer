@@ -1,65 +1,61 @@
 /*
-
   Integer-arithmetic reverb for RP2040
 
-  Based on:
-  - Dattorro paper: 
+  Algorithm based on Dattorro paper:
      https://ccrma.stanford.edu/~dattorro/EffectDesignPart1.pdf
+     https://github.com/el-visio/dattorro-verb
 
-  - MIT-licensed code https://github.com/el-visio/dattorro-verb 
-    copyright (c) 2022 Pauli Pölkki
-
-  Filters inside and prior to reverb 'tank' are modified from the above, to give
+  Filters inside and prior to reverb 'tank' are added from the above, to give
     high or low pass filtering
 
-  Converted from float to integer type, for implementation on RP2040.
-  Broadly speaking the conversion consists of float -> int32_t and
-  a*b being replaced by (a*b)>>16, which benefits from single-cycle multiply on RP2040
+  Implemented usign integer arithmetic, for fast execution on RP2040. Products implemented 
+  as (a*b)>>16 (for int32_t a,b), which benefits from single-cycle multiply on RP2040.
   Shift operations on negative are undefined behaviour in C, but gcc compiles
   to ASR instruction, which divides negative numbers by two, rounding towards
   negative infinity.
   In the allpass filter, (a*(b>>4))>>12 is used, to give more audio headroom without wrapping
-  
 */
 
-#include "verb_int.h"
+#include "reverb_dsp.h"
 
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 
-/* Clamp value between min and max */
-int32_t clamp(int32_t x, int32_t min, int32_t max)
+// Clamp value between min and max 
+int32_t __not_in_flash_func(clamp)(int32_t x, int32_t min, int32_t max)
 {
 	if (x < min)
 		return min;
-  
+
 	if (x > max)
 		return max;
 
-	return x; 
+	return x;
 }
 
-/* Set delay amount */
-void buffer_setDelay(buffer* db, uint16_t tap, uint16_t delay)
+// Set delay amount 
+void __not_in_flash_func(buffer_setDelay)(buffer *db, uint16_t tap, uint16_t delay)
 {
 	db->readOffset[tap] = db->mask + 1 - delay;
 }
 
-/* Initialise delay instance */
-void buffer_init(buffer* db, uint16_t delay)
+////////////////////////////////////////
+// Delay functions
+void buffer_init(buffer *db, uint16_t delay)
 {
 	memset(db, 0, sizeof(delay));
 
 	// Calculate number of bits
 	int16_t x = delay;
 	uint16_t numBits = 0;
-	while (x) {
+	while (x)
+	{
 		numBits++;
 		x >>= 1;
 	}
 
-	// Buffer size is always 2^n, to avoid 
+	// Buffer size is always 2^n, to avoid
 	uint16_t bufferSize = 1 << numBits;
 
 	// Allocate buffer
@@ -81,52 +77,51 @@ void buffer_clear(buffer *db)
 	memset(db->buffer, 0, size * sizeof(int32_t));
 }
 
-/* Free resources for delay instance */
-void buffer_delete(buffer* db)
+void buffer_delete(buffer *db)
 {
 	free(db->buffer);
 	db->buffer = 0;
 }
 
-/* Write input value into buffer, read delayed output */
-int32_t delay_process(buffer* db, uint16_t t, int32_t in)
+// Write input value into buffer, read delayed output 
+int32_t __not_in_flash_func(delay_process)(buffer *db, uint16_t t, int32_t in)
 {
 	db->buffer[t & db->mask] = in;
 	return db->buffer[(t + db->readOffset[TAP_MAIN]) & db->mask];
 }
 
-/* Write value into delay buffer */
-void buffer_write(buffer* db, uint16_t t, int32_t in) 
+// Write value into delay buffer 
+void __not_in_flash_func(buffer_write)(buffer *db, uint16_t t, int32_t in)
 {
 	db->buffer[t & db->mask] = in;
 }
 
-/* Read delayed output value */
-int32_t buffer_read(buffer* db, uint16_t tapId, uint16_t t) 
+// Read delayed output value 
+int32_t __not_in_flash_func(buffer_read)(buffer *db, uint16_t tapId, uint16_t t)
 {
 	return db->buffer[(t + db->readOffset[tapId]) & db->mask];
 }
 
 
 
-/* Allpass filter */
-int32_t allpass_process(buffer* db, uint16_t t, int32_t gain, int32_t in)
+// Allpass filter 
+int32_t __not_in_flash_func(allpass_process)(buffer *db, uint16_t t, int32_t gain, int32_t in)
 {
 	// give 4 more bits of headroom in multiply than elsewhere
 	// since gain is not a critical parameter (we can cope with 12-bit accuracy)
 	// and overflow was fairly frequent without this
-	gain >>= 4; 
-	
+	gain >>= 4;
+
 	int32_t delayed = buffer_read(db, TAP_MAIN, t);
-	in += ((delayed * -gain)>>12);
-	//in = clamp(in, -16383, 16383);
+	in += ((delayed * -gain) >> 12);
+	// in = clamp(in, -16383, 16383);
 
 	buffer_write(db, t, in);
-	return delayed + ((in * gain)>>12);
+	return delayed + ((in * gain) >> 12);
 }
 
 
-/* 
+/*
 Single-pole IIR lowpass
 Cutoff frequency as function of 'b' parameter is
 
@@ -134,63 +129,62 @@ f_c = -(f_s/(2 pi)) * ln(1-b/65536)
 
 where f_s is the sample rate
 */
-int32_t lowpass_process(int32_t* out, int32_t b, int32_t in)
+int32_t __not_in_flash_func(lowpass_process)(int32_t *out, int32_t b, int32_t in)
 {
 	*out += (((in - *out) * b) >> 16);
 	return *out;
 }
 
-/* Highpass, as above */
-int32_t highpass_process(int32_t* out, int32_t b, int32_t in)
+// Highpass, as above 
+int32_t __not_in_flash_func(highpass_process)(int32_t *out, int32_t b, int32_t in)
 {
 	*out += (((in - *out) * b) >> 16);
-	return in-*out;
+	return in - *out;
 }
 
 
-/* Set decay amount and calculate related decay diffusion 2 amount. Value is  65536 * float value */
-void reverb_set_size(reverb* v, int32_t size)
+// Set decay amount and calculate related decay diffusion 2 amount. Value is  65536 * float value 
+void __not_in_flash_func(reverb_set_size)(reverb *v, int32_t size)
 {
-	int32_t s = size>>1;
-	int32_t value = 65500-(((32750-s)*(32750-s))>>14);
+	int32_t s = size >> 1;
+	int32_t value = 65500 - (((32750 - s) * (32750 - s)) >> 14);
 	v->decayAmount = value;
 	v->decayDiffusion2Amount = clamp(value + 9830, 16384, 32768);
 
 	// set pre-delay amount. This is the line that causes pitch shift when knob x is altered
-	buffer_setDelay(&v->preDelay, TAP_MAIN, size>>4);
+	buffer_setDelay(&v->preDelay, TAP_MAIN, size >> 4);
 }
 
-/* Set decay amount and calculate related decay diffusion 2 amount. Value is  65536 * float value */
-void reverb_set_freeze_size(reverb* v, int32_t size)
+// Set decay amount and calculate related decay diffusion 2 amount. Value is  65536 * float value 
+void __not_in_flash_func(reverb_set_freeze_size)(reverb *v, int32_t size, int32_t mult)
 {
 	// Fixed decay amount and diffusion
-	int32_t s = 65500>>1;
-	int32_t value = 65500-(((32750-s)*(32750-s))>>14);
-	v->decayAmount = 65535;//value;
-	v->decayDiffusion2Amount = 32768;
+	int32_t s = size >> 1;
+	int32_t value = 65500 - (((32750 - s) * (32750 - s)) >> 14);
+	v->decayAmount = (65536 * (256 - mult) + value * mult) >> 8;
+	v->decayDiffusion2Amount = clamp(value + 9830, 16384, 32768);
 
 	// set pre-delay amount. This is the line that causes pitch shift when knob x is altered
-	buffer_setDelay(&v->preDelay, TAP_MAIN, size>>4);
+	buffer_setDelay(&v->preDelay, TAP_MAIN, size >> 4);
 }
 
 
-/*   Set frequency response inside reverberator */
-void reverb_set_tilt(struct sreverb* v, int32_t value)
+// Set frequency response inside reverberator 
+void __not_in_flash_func(reverb_set_tilt)(struct sreverb *v, int32_t value)
 {
 	value -= 32768;
-	v->lpf = (value<0);
-	
-	value = (value*value)>>14;
+	v->lpf = (value < 0);
 
-	v->dampingLPF=65535-value;
-	v->preFilterLPF=65535-value;
-	v->dampingHPF = value>>1;
-	v->preFilterHPF = value>>1;
-	
+	value = (value * value) >> 14;
+
+	v->dampingLPF = 65535 - value;
+	v->preFilterLPF = 65535 - value;
+	v->dampingHPF = value >> 1;
+	v->preFilterHPF = value >> 1;
 }
 
-/* Initialise reverb instance */
-void initialise(reverb* v)
+// Initialise reverb instance
+void initialise(reverb *v)
 {
 	memset(v, 0, sizeof(reverb));
 
@@ -201,7 +195,7 @@ void initialise(reverb* v)
 	buffer_init(&v->inDiffusion[2], 379);
 	buffer_init(&v->inDiffusion[3], 277);
 
-	buffer_init(&v->decayDiffusion1[0], 672);    // + EXCURSION
+	buffer_init(&v->decayDiffusion1[0], 672); // + EXCURSION
 	v->decayDiffusion1[0].readOffset[TAP_OUT1] = v->decayDiffusion1[0].readOffset[TAP_MAIN];
 
 	buffer_init(&v->preDampingDelay[0], 4453);
@@ -217,7 +211,7 @@ void initialise(reverb* v)
 	buffer_setDelay(&v->postDampingDelay[0], TAP_OUT1, 1066);
 	buffer_setDelay(&v->postDampingDelay[0], TAP_OUT2, 2673);
 
-	buffer_init(&v->decayDiffusion1[1], 908);    // + EXCURSION
+	buffer_init(&v->decayDiffusion1[1], 908); // + EXCURSION
 	v->decayDiffusion1[1].readOffset[TAP_OUT1] = v->decayDiffusion1[1].readOffset[TAP_MAIN];
 
 	buffer_init(&v->preDampingDelay[1], 4217);
@@ -234,12 +228,14 @@ void initialise(reverb* v)
 	buffer_setDelay(&v->postDampingDelay[1], TAP_OUT2, 1996);
 
 	// Default settings
-	v->modulate=1;
-	v->lpf=1;
-	v->tapModVal=0;
-	v->tapDir=-1;
+	v->modulate = 0x7ff;
+	v->modulatedist = 16;
+
+	v->lpf = 1;
+	v->tapModVal = 0;
+	v->tapDir = -1;
 	buffer_setDelay(&v->preDelay, TAP_MAIN, 400);
-	v->preFilterHPF= 49152;
+	v->preFilterHPF = 49152;
 	v->preFilterLPF = 49152;
 	v->inputDiffusion1Amount = 49152;
 	v->inputDiffusion2Amount = 40960;
@@ -248,10 +244,10 @@ void initialise(reverb* v)
 	reverb_set_tilt(v, 62259);
 }
 
-/* Get pointer to initialised reverb instance */
-reverb* reverb_create(void)
+// Get pointer to initialised reverb instance
+reverb *reverb_create(void)
 {
-	reverb* v = malloc(sizeof(reverb));
+	reverb *v = malloc(sizeof(reverb));
 	if (!v)
 		return NULL;
 
@@ -259,8 +255,8 @@ reverb* reverb_create(void)
 	return v;
 }
 
-/* Free resources and delete reverb instance */
-void reverb_delete(reverb* v)
+// Free resources and delete reverb instance
+void reverb_delete(reverb *v)
 {
 	// Free delay buffers
 	buffer_delete(&v->preDelay);
@@ -280,11 +276,12 @@ void reverb_delete(reverb* v)
 
 	free(v);
 }
-/* Resets buffers to zero */
-void reverb_reset(reverb* v)
+
+// Resets buffers to zero 
+void __not_in_flash_func(reverb_reset)(reverb *v)
 {
 	if (!v) return;
-	
+
 	// Free delay buffers
 	buffer_clear(&v->preDelay);
 
@@ -306,73 +303,74 @@ void reverb_reset(reverb* v)
 	v->preFilterH[1] = 0;
 	v->preFilterL[1] = 0;
 	v->acCouplingHPF = 0;
-	v->dampingH[0]=0; v->dampingH[1]=0;
-	v->dampingL[0]=0; v->dampingL[1]=0;
+	v->dampingH[0] = 0;
+	v->dampingH[1] = 0;
+	v->dampingL[0] = 0;
+	v->dampingL[1] = 0;
 }
 
 
 // Process mono audio
-void reverb_process(reverb* v, int32_t in)
+void __not_in_flash_func(reverb_process)(reverb *v, int32_t in)
 {
 	int32_t x, x1, x2, x3;
 
 	// Every 2048 samples (23.4Hz at 48kHz sample rate), alter allpass length by 1 sample
 	// Triangle wave modulation, reducing and increasing length by 16 samples
 
-	in = clamp(in,-16384,16383);
-	
+	in = clamp(in, -16384, 16383);
+
 	if (v->modulate && (v->t & v->modulate) == 0)
 	{
-		v->decayDiffusion1[0].readOffset[TAP_MAIN]=v->decayDiffusion1[0].readOffset[TAP_OUT1]+v->tapModVal;
-		v->decayDiffusion1[1].readOffset[TAP_MAIN]=v->decayDiffusion1[1].readOffset[TAP_OUT1]+v->tapModVal;
+		v->decayDiffusion1[0].readOffset[TAP_MAIN] = v->decayDiffusion1[0].readOffset[TAP_OUT1] + v->tapModVal;
+		v->decayDiffusion1[1].readOffset[TAP_MAIN] = v->decayDiffusion1[1].readOffset[TAP_OUT1] + v->tapModVal;
 
 		v->tapModVal += v->tapDir;
 		if (v->tapModVal <= -v->modulatedist)
 		{
-			v->tapDir=1;
+			v->tapDir = 1;
 		}
 		if (v->tapModVal >= 0)
 		{
-			v->tapDir=-1;
+			v->tapDir = -1;
 		}
 	}
 
-	
 	x = delay_process(&v->preDelay, v->t, in); // pre-delay
 
 	x2 = lowpass_process(&v->preFilterL[0], v->preFilterLPF, x); // pre-filter
-//	x2 = lowpass_process(&v->preFilterL[1], v->preFilterLPF, x2); // pre-filter
 	x3 = highpass_process(&v->preFilterH[0], v->preFilterHPF, x);
-//	x3 = highpass_process(&v->preFilterH[1], v->preFilterHPF, x3);
 	x2 = clamp(x2, -16383, 16383);
 	x3 = clamp(x3, -16383, 16383);
 
-	x = (v->lpf)?x2:x3;
-	
+	x = (v->lpf) ? x2 : x3;
+
 	// Input diffusion
 	x = allpass_process(&v->inDiffusion[0], v->t, v->inputDiffusion1Amount, x);
 	x = allpass_process(&v->inDiffusion[1], v->t, v->inputDiffusion1Amount, x);
 	x = allpass_process(&v->inDiffusion[2], v->t, v->inputDiffusion2Amount, x);
 	x = allpass_process(&v->inDiffusion[3], v->t, v->inputDiffusion2Amount, x);
-//	x = clamp(x, -16383, 16383);
+	//	x = clamp(x, -16383, 16383);
 
 	// Throughout this repeated section, occasionally clamp inputs to be within intended range,
 	// to try to avoid integer wrapping.
 	// This almost certainly doesn't eliminate wrapping entirely, but helps avoid it
 	for (int i = 0; i < 2; i++)
 	{
-		// ~23Hz input HPF, to cancel and input DC offset
-		if (i==0) x1 = highpass_process(&v->acCouplingHPF, 200, x);
-		else x1 = x;
-		
+		// ~23Hz input HPF, to cancel any input DC offset
+		if (i == 0)
+			x1 = highpass_process(&v->acCouplingHPF, 200, x);
+		else
+			x1 = x;
+
 		// Add cross feedback
-		x1 = x1 + ((buffer_read(&v->postDampingDelay[1 - i], TAP_MAIN, v->t) * v->decayAmount)>>16);
+		x1 = x1 + ((buffer_read(&v->postDampingDelay[1 - i], TAP_MAIN, v->t) * v->decayAmount) >> 16);
 		x1 = clamp(x1, -16383, 16383);
-		
+
 		// Process single half of the tank
 		x1 = allpass_process(&v->decayDiffusion1[i], v->t, -v->decayDiffusion1Amount, x1);
-//		x1 = clamp(x1, -16383, 16383);
-		
+		//		x1 = clamp(x1, -16383, 16383);
+
 		x1 = delay_process(&v->preDampingDelay[i], v->t, x1);
 
 		// Primative shelf filter for damping high or low frequencies
@@ -381,14 +379,14 @@ void reverb_process(reverb* v, int32_t in)
 		x3 = highpass_process(&v->dampingH[i], v->dampingHPF, x1);
 		x2 = clamp(x2, -16383, 16383);
 		x3 = clamp(x3, -16383, 16383);
-		x1 = (7*x1 + ((v->lpf)?x2:x3))>>3; // turn filter into shelf
+		x1 = (7 * x1 + ((v->lpf) ? x2 : x3)) >> 3; // turn filter into shelf
 		x1 = clamp(x1, -16383, 16383);
-		
-		x1 = ((x1*v->decayAmount)>>16); // attenuate
-		
+
+		x1 = ((x1 * v->decayAmount) >> 16); // attenuate
+
 		x1 = allpass_process(&v->decayDiffusion2[i], v->t, v->decayDiffusion2Amount, x1);
-//		x1 = clamp(x1, -16383, 16383);
-		
+		//		x1 = clamp(x1, -16383, 16383);
+
 		buffer_write(&v->postDampingDelay[i], v->t, x1);
 	}
 
@@ -397,63 +395,29 @@ void reverb_process(reverb* v, int32_t in)
 }
 
 // Get left channel reverb
-int32_t reverb_get_left(reverb* v)
+int32_t __not_in_flash_func(reverb_get_left)(reverb *v)
 {
 	int32_t a;
-	a  = buffer_read(&v->preDampingDelay[1],  TAP_OUT1, v->t);
-	a += buffer_read(&v->preDampingDelay[1],  TAP_OUT2, v->t);
-	a -= buffer_read(&v->decayDiffusion2[1],  TAP_OUT2, v->t);
+	a = buffer_read(&v->preDampingDelay[1], TAP_OUT1, v->t);
+	a += buffer_read(&v->preDampingDelay[1], TAP_OUT2, v->t);
+	a -= buffer_read(&v->decayDiffusion2[1], TAP_OUT2, v->t);
 	a += buffer_read(&v->postDampingDelay[1], TAP_OUT2, v->t);
-	a -= buffer_read(&v->preDampingDelay[0],  TAP_OUT3, v->t);
-	a -= buffer_read(&v->decayDiffusion2[0],  TAP_OUT1, v->t);
+	a -= buffer_read(&v->preDampingDelay[0], TAP_OUT3, v->t);
+	a -= buffer_read(&v->decayDiffusion2[0], TAP_OUT1, v->t);
 	a += buffer_read(&v->postDampingDelay[0], TAP_OUT1, v->t);
 	return a;
 }
 
 // Get right channel reverb
-int32_t reverb_get_right(reverb* v)
+int32_t __not_in_flash_func(reverb_get_right)(reverb *v)
 {
 	int32_t a;
-	a  = buffer_read(&v->preDampingDelay[0],  TAP_OUT1, v->t);
-	a += buffer_read(&v->preDampingDelay[0],  TAP_OUT2, v->t);
-	a -= buffer_read(&v->decayDiffusion2[0],  TAP_OUT2, v->t);
+	a = buffer_read(&v->preDampingDelay[0], TAP_OUT1, v->t);
+	a += buffer_read(&v->preDampingDelay[0], TAP_OUT2, v->t);
+	a -= buffer_read(&v->decayDiffusion2[0], TAP_OUT2, v->t);
 	a += buffer_read(&v->postDampingDelay[0], TAP_OUT2, v->t);
-	a -= buffer_read(&v->preDampingDelay[1],  TAP_OUT3, v->t);
-	a -= buffer_read(&v->decayDiffusion2[1],  TAP_OUT1, v->t);
+	a -= buffer_read(&v->preDampingDelay[1], TAP_OUT3, v->t);
+	a -= buffer_read(&v->decayDiffusion2[1], TAP_OUT1, v->t);
 	a += buffer_read(&v->postDampingDelay[1], TAP_OUT1, v->t);
 	return a;
 }
-
-
-
-/*
-Based on floating-point implementation of Dattorro algorithm,
-
-https://github.com/el-visio/dattorro-verb/
-
-MIT License
-
-copyright (c) 2022 Pauli Pölkki
-
-
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
- */

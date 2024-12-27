@@ -14,7 +14,7 @@ typedef struct
 // Call with risingEdge true/false on a trigger. Returns new state of clock-divided trigger
 // with risingEdge true, returns true only every <divisor>th time it is called
 // with risingEdge false, returns true only if divisor>1 and last risingEdge was true
-bool divider_step(divider *d, bool risingEdge)
+bool __not_in_flash_func(divider_step)(divider *d, bool risingEdge)
 {
 	if (risingEdge)
 	{
@@ -24,22 +24,33 @@ bool divider_step(divider *d, bool risingEdge)
 			d->counter = 0;
 			return true;
 		}
-		else return false;
+		else
+			return false;
 	}
 	else
 	{
-		if (d->divisor==1)
+		if (d->divisor == 1)
 			return false;
 		else
-			return d->counter==0;
+			return d->counter == 0;
 	}
 }
 
-void divider_set(divider *d, uint8_t divisor)
+void __not_in_flash_func(divider_set)(divider *d, uint8_t divisor)
 {
-	d->divisor = divisor;
+	if (divisor <= 10)
+		d->divisor = divisor;
+	else if (divisor == 11)
+		d->divisor = 12;
+	else if (divisor == 12)
+		d->divisor = 16;
+	else if (divisor == 13)
+		d->divisor = 24;
+	else if (divisor == 14)
+		d->divisor = 32;
+
 	if (d->counter >= d->divisor)
-		d->counter = d->divisor-1;
+		d->counter = d->divisor - 1;
 }
 
 void divider_init(divider *d)
