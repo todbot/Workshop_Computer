@@ -42,6 +42,8 @@ public:
 		int16_t audioL = AudioIn1(); // -2048 to 2047
 		int16_t audioR = AudioIn2(); // -2048 to 2047
 
+		// CROSSFADING CV MIXER WITH INPUTS NORMALED TO NOISE AND VOLTAGE OFFSET
+
 		if (Connected(Input::CV1) && Connected(Input::CV2))
 		{
 			thing1 = cv1 * x >> 12;
@@ -60,7 +62,7 @@ public:
 		else
 		{
 			thing1 = noise * x >> 12;
-			thing2 = y>>1;
+			thing2 = y >> 1;
 		};
 
 		// simple crossfade
@@ -68,42 +70,51 @@ public:
 
 		CVOut1(cvMix);
 
+		////INTERNAL CLOCK AND RANDOM CLOCK SKIP
+
 		clockRate = ((4095 - x) * 48000 * 2 + 50) >> 12;
-
-		clock++;
-		if (clock > clockRate)
-		{
-			clock = 0;
-			PulseOut1(true);
-			LedOn(4, true);
-			pulseTimer1 = 200;
-			clockPulse = true;
-		};
-
-		if ((cvMix > (y - 2048)) && (clockPulse || PulseIn1RisingEdge()))
-		{
-			PulseOut2(true);
-			pulseTimer2 = 200;
-			LedOn(5, true);
-		};
 
 		if (Connected(Input::Pulse1))
 		{
 			// connected
+
 			if (PulseIn1RisingEdge())
 			{
 				CVOut2MIDINote(quantSample(cvMix));
-				pulseTimer1 = 200;
+				if (cvMix > (y - 2048))
+				{
+					PulseOut2(true);
+					pulseTimer2 = 200;
+					LedOn(5, true);
+				}
+				else
+				{
+					pulseTimer1 = 200;
+					PulseOut1(true);
+					LedOn(4, true);
+				}
 			};
 		}
 		else
 		{
-			// not connected
-			if (clockPulse)
+			// not connected, use internal clock
+
+			clock++;
+			if (clock > clockRate)
 			{
+				clock = 0;
+				PulseOut1(true);
+				LedOn(4, true);
+				pulseTimer1 = 200;
 				CVOut2MIDINote(quantSample(cvMix));
+				if (cvMix > (y - 2048))
+				{
+					PulseOut2(true);
+					pulseTimer2 = 200;
+					LedOn(5, true);
+				}
 			}
-		}
+		};
 
 		// If a pulse is ongoing, keep counting until it ends
 		if (pulseTimer1)
