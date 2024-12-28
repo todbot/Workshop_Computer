@@ -46,6 +46,8 @@ public:
 		int16_t audioL = AudioIn1(); // -2048 to 2047
 		int16_t audioR = AudioIn2(); // -2048 to 2047
 
+		startPos = y * BUFFER_SIZE >> 12;
+
 		// CROSSFADING CV MIXER WITH INPUTS NORMALED TO NOISE AND VOLTAGE OFFSET
 
 		if (Connected(Input::CV1) && Connected(Input::CV2))
@@ -146,45 +148,45 @@ public:
 			}
 		};
 
+		if (PulseIn2RisingEdge())
+		{
+			readIndexL = startPos;
+			readIndexR = startPos;
+		};
+
 		// BUFFERS LOOPS/DELAYSSS
 
-		bool record = false;
-		bool delay = false;
-		bool play = false;
+		delaySamples = (main * BUFFER_SIZE >> 12);
 
-		if(s == Switch::Down)
+		int lowPassX = x * 3 >> 2;
+
+		int incr = 4096 - lowPassX + 40;
+
+		if (s == Switch::Down)
 		{
-			record = true;
-		} else if (s == Switch::Up)
+			// reset clock, stop recording, playback, loop at the end of the delay
+		}
+		else if (s == Switch::Up)
 		{
-			play = true;
-		} else 
+			// play the loop, ignore the input
+		}
+		else if (s == Switch::Middle)
 		{
-			delay = true;
-		};
-		
+			// record the loop, output audio delayed (patch your own feedback)
+			sampleRamp += incr;
 
-		if (record)
-		{
-			audioBufferL[writeIndexL] = audioL;
-			audioBufferR[writeIndexR] = audioR;
-			cvBufferL[writeIndexL] = cv1;
-			cvBufferR[writeIndexR] = cv2;
-			triggerBufferL[writeIndexL] = trigL;
-			triggerBufferR[writeIndexR] = trigR;
-		};
-
-		writeIndexL = (writeIndexL + 1) % BUFFER_SIZE;
-		writeIndexR = (writeIndexR + 1) % BUFFER_SIZE;
-
-		int incr = 4096 - x + 40;
-
-		sampleRamp += incr;
-
-		if (sampleRamp > 8192)
-		{
-			sampleRamp -= 8192;
-			// Calculate new sample for outputsssss
+			if (sampleRamp > 8192)
+			{
+				sampleRamp -= 8192;
+				// Calculate new sample for outputsssss
+				writeSamples(audioL, audioR, cv1, cv2, trigL, trigR);
+				readIndexL = (writeIndexL - delaySamples + BUFFER_SIZE) % BUFFER_SIZE;
+				readIndexR = (writeIndexR - delaySamples + BUFFER_SIZE) % BUFFER_SIZE;
+				AudioOut1(audioBufferL[readIndexL]);
+				AudioOut2(audioBufferR[readIndexR]);
+				writeIndexL = (writeIndexL + 1) % BUFFER_SIZE;
+				writeIndexR = (writeIndexR + 1) % BUFFER_SIZE;
+			}
 		}
 	};
 
@@ -205,6 +207,19 @@ private:
 	int readIndexR = 0;
 	int writeIndexL = 0;
 	int writeIndexR = 0;
+	int startPos = 0;
+	int delaySamples = 0;
+
+	void writeSamples(int16_t audioL, int16_t audioR, int16_t cv1, int16_t cv2, bool trigL, bool trigR)
+	{
+		// write samples to buffers
+		audioBufferL[writeIndexL] = audioL;
+		audioBufferR[writeIndexR] = audioR;
+		cvBufferL[writeIndexL] = cv1;
+		cvBufferR[writeIndexR] = cv2;
+		triggerBufferL[writeIndexL] = trigL;
+		triggerBufferR[writeIndexR] = trigR;
+	};
 };
 
 int main()
