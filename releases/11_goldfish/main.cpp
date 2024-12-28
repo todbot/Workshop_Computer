@@ -1,7 +1,7 @@
 #include "ComputerCard.h"
 #include "quantiser.h"
 
-#define BUFFER_SIZE 44100
+#define BUFFER_SIZE 22050
 
 #define SEMI_TONE static_cast<int32_t>(1 / 12) << 12
 #define WHOLE_TONE static_cast<int32_t>(2 / 12) << 12
@@ -17,8 +17,10 @@ uint32_t __not_in_flash_func(rnd12)()
 class Goldfish : public ComputerCard
 {
 public:
-	Goldfish() {
+	Goldfish()
+	{
 		// constructor
+		sampleRamp = 0;
 	};
 
 	virtual void ProcessSample()
@@ -35,6 +37,8 @@ public:
 		int16_t thing1 = 0;
 		int16_t thing2 = 0;
 		bool clockPulse = false;
+		bool trigL = false;
+		bool trigR = false;
 
 		// Read inputs
 		int16_t cv1 = CVIn1();		 // -2048 to 2047
@@ -70,7 +74,7 @@ public:
 
 		CVOut1(cvMix);
 
-		////INTERNAL CLOCK AND RANDOM CLOCK SKIP
+		////INTERNAL CLOCK AND RANDOM CLOCK SKIP / SWITCHED GATE
 
 		clockRate = ((4095 - x) * 48000 * 2 + 50) >> 12;
 
@@ -84,6 +88,7 @@ public:
 				if (cvMix > (y - 2048))
 				{
 					PulseOut2(true);
+					trigR = true;
 					pulseTimer2 = 200;
 					LedOn(5, true);
 				}
@@ -91,6 +96,7 @@ public:
 				{
 					pulseTimer1 = 200;
 					PulseOut1(true);
+					trigL = true;
 					LedOn(4, true);
 				}
 			};
@@ -104,12 +110,14 @@ public:
 			{
 				clock = 0;
 				PulseOut1(true);
+				trigL = true;
 				LedOn(4, true);
 				pulseTimer1 = 200;
 				CVOut2MIDINote(quantSample(cvMix));
 				if (cvMix > (y - 2048))
 				{
 					PulseOut2(true);
+					trigR = true;
 					pulseTimer2 = 200;
 					LedOn(5, true);
 				}
@@ -137,16 +145,66 @@ public:
 				LedOff(5);
 			}
 		};
+
+		// BUFFERS LOOPS/DELAYSSS
+
+		bool record = false;
+		bool delay = false;
+		bool play = false;
+
+		if(s == Switch::Down)
+		{
+			record = true;
+		} else if (s == Switch::Up)
+		{
+			play = true;
+		} else 
+		{
+			delay = true;
+		};
+		
+
+		if (record)
+		{
+			audioBufferL[writeIndexL] = audioL;
+			audioBufferR[writeIndexR] = audioR;
+			cvBufferL[writeIndexL] = cv1;
+			cvBufferR[writeIndexR] = cv2;
+			triggerBufferL[writeIndexL] = trigL;
+			triggerBufferR[writeIndexR] = trigR;
+		};
+
+		writeIndexL = (writeIndexL + 1) % BUFFER_SIZE;
+		writeIndexR = (writeIndexR + 1) % BUFFER_SIZE;
+
+		int incr = 4096 - x + 40;
+
+		sampleRamp += incr;
+
+		if (sampleRamp > 8192)
+		{
+			sampleRamp -= 8192;
+			// Calculate new sample for outputsssss
+		}
 	};
 
 private:
 	int16_t audioBufferL[BUFFER_SIZE] = {0};
 	int16_t audioBufferR[BUFFER_SIZE] = {0};
+	int16_t cvBufferL[BUFFER_SIZE] = {0};
+	int16_t cvBufferR[BUFFER_SIZE] = {0};
+	bool triggerBufferL[BUFFER_SIZE] = {0};
+	bool triggerBufferR[BUFFER_SIZE] = {0};
 	int clockRate;
 	int clock = 0;
 	int pulseTimer1 = 200;
 	int pulseTimer2;
 	bool clockPulse = false;
+	int sampleRamp;
+	int readIndexL = 0;
+	int readIndexR = 0;
+	int writeIndexL = 0;
+	int writeIndexR = 0;
 };
 
 int main()
