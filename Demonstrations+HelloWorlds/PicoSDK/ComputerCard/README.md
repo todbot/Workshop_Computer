@@ -147,8 +147,8 @@ void loop() {
 
 ComputerCard is designed to allow audio signals (with bandwidths up to ~20kHz) to be processed at low latency. To do this, the computations for each sample must be calculated individually, by calling the users `ProcessSample()` function at 48kHz. The `ProcessSample()` function for one sample must finish before the one for the next sample starts, meaning that the user's code for each sample must execute in 1/48000th of a second, or ~20μs. This is perfectly feasible on the RP2040, but requires some attention to code performance. Specifically;
 
-1. for most cards, calculations must be done with integers rather than floating point.
-2. relatively lengthy calculations (more than ~20μs) must be done on a different RP2040 core to the audio, or split between `ProcessSample` calls to ensure than no one call goes above the maximum duration. In particular, USB handling must be on a different core.
+1. calculations on audio signals usually need to be done with integers rather than floating point.
+2. relatively lengthy calculations (more than ~20μs) must be done on a different RP2040 core to the audio, or split between `ProcessSample` calls to ensure than no one call goes above the maximum duration. In particular, USB handling must be on a different core. The `second_core` example shows one way to execute longer/slower computations for CV signals on the second core, while the `midi_device` example demonstrates one way to use USB on the second core. 
 3. Particularly for larger programs, it may be necessary to force the code called by `ProcessSample` into RAM, so that delays in fetching of code from the flash card do not cause `ProcessSample()` to exceed its allowed time.
 
 We'll discuss each of these below

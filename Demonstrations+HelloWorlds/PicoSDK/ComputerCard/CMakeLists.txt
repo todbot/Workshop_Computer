@@ -28,3 +28,6 @@ add_example(midi_device)
 target_link_libraries(midi_device pico_multicore tinyusb_device tinyusb_board )
 target_sources(midi_device PUBLIC ${CMAKE_CURRENT_LIST_DIR}/examples/midi_device/usb_descriptors.c)
 pico_enable_stdio_usb(midi_device 0)
+
+add_example(second_core)
+target_link_libraries(second_core pico_multicore)
