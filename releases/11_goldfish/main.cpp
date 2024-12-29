@@ -35,6 +35,11 @@ public:
 		int32_t y = KnobVal(Knob::Y);
 		int32_t main = KnobVal(Knob::Main);
 
+		int lowPassX = (lastLowPassX * 15 + x) >> 4;
+		int lowPassMain = (lastLowPassMain * 15 + main) >> 4;
+		lastLowPassX = lowPassX;
+		lastLowPassMain = lowPassMain;
+
 		int16_t cvMix = 0;
 		int16_t thing1 = 0;
 		int16_t thing2 = 0;
@@ -79,7 +84,7 @@ public:
 
 		////INTERNAL CLOCK AND RANDOM CLOCK SKIP / SWITCHED GATE
 
-		clockRate = ((4095 - y) * BUFFER_SIZE * 2 + 50) >> 12;
+		clockRate = ((4095 - lowPassX) * BUFFER_SIZE * 2 + 50) >> 12;
 
 		if (Connected(Input::Pulse1))
 		{
@@ -161,7 +166,7 @@ public:
 
 		
 
-		int incr = 2048 - (main>>1) + 40;
+		int incr = ((4095 - lowPassMain) * 2048 >> 12) + 64;
 
 		if (s == Switch::Down)
 		{
@@ -210,6 +215,8 @@ private:
 	int writeIndexL = 0;
 	int writeIndexR = 0;
 	int startPos = 0;
+	int lastLowPassX = 0;
+	int lastLowPassMain = 0;
 
 	void writeSamples(int16_t audioL, int16_t audioR, int16_t cv1, int16_t cv2, bool trigL, bool trigR)
 	{
