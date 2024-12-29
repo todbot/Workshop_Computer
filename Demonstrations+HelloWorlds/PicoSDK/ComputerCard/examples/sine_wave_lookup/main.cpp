@@ -3,9 +3,15 @@
 
 /// Outputs sine wave at 440Hz
 
-/// Since floating-point sin(...) is too slow to call every sample,
-/// use a lookup table with linear interpolation
-class SineWave : public ComputerCard
+/// Uses an integer lookup table with linear interpolation, for speed.
+/// At default clock rate of 125MHz, about 40 of these lookup-table
+//  evaluations are possible in a 48kHz sample.
+
+/// See (much simpler) sine_wave_float/ example for the same 440Hz sine
+/// evaluated using floating-point arithmetic.
+
+
+class SineWaveLookup : public ComputerCard
 {
 public:
 	// 512-point (9-bit) lookup table
@@ -20,7 +26,7 @@ public:
 	// Sine wave phase (0-2^32 gives 0-2pi phase range)
 	uint32_t phase;
 	
-	SineWave()
+	SineWaveLookup()
 	{
 		// Initialise phase of sine wave to 0
 		phase = 0;
@@ -59,15 +65,13 @@ public:
 		//           = 39370533.54666...
 		//          ~= 39370534
 		phase += 39370534;
-		
-
 	}
 };
 
 
 int main()
 {
-	SineWave sw;
+	SineWaveLookup sw;
 	sw.Run();
 }
 

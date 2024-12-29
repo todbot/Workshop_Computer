@@ -4,7 +4,7 @@ ComputerCard is a  [MIT licensed](https://opensource.org/license/mit) header-onl
 manages the hardware aspects of the [Music Thing Modular Workshop
 System Computer](https://www.musicthing.co.uk/workshopsystem/).
 
-It aims to present a very simple C++ framework for card programmers to use the jacks, knobs, switch and LEDs, for programs running at a fixed 48kHz audio sample rate.
+It aims to present a very simple C++ framework for card programmers to use the jacks, knobs, switch and LEDs, with a callback at a fixed 48kHz audio sample rate.
 
 ComputerCard was designed to work with the [RPi Pico SDK](https://github.com/raspberrypi/pico-sdk) but also works with the Arduino environment using the earlephilhower RP2040 board [as described below](#arduino-ide)
 
@@ -67,6 +67,7 @@ For beginners just starting with ComputerCard, the first example to look at is `
 - `normalisation_probe` — minimal example of patch cable detection. LEDs are lit when corresponding sockets have a jack plugged in.
 - `passthrough` — simple demonstration of using the jacks, knobs, switch and LEDs.
 - `sample_and_hold` — dual sample and hold, demonstrating jacks, normalisation probe and pseudo-random numbers
+- `second_core` — demonstration of using the second RP2040 core for more CPU-intensive processing than is possible at the 48kHz sample rate
 - `sine_wave` — 440Hz sine wave generator, demonstrating scanning and linear interpolation of a lookup table using integer arithmetic
 - `talkie_pcm` — not a good pedagogical example, but a hack of the [TalkiePCM](https://github.com/pschatzmann/TalkiePCM/) speech library to make it interface with ComputerCard.
     
@@ -142,24 +143,27 @@ void loop() {
   Copy this file to your Computer.
 - Done.
 
+### Limitations
+
+It appears that the normalisation probe does not function correctly when ComputerCard is compiled with the Arduino environment.
 
 # [Programming for ComputerCard](#programming)
 
 ComputerCard is designed to allow audio signals (with bandwidths up to ~20kHz) to be processed at low latency. To do this, the computations for each sample must be calculated individually, by calling the users `ProcessSample()` function at 48kHz. The `ProcessSample()` function for one sample must finish before the one for the next sample starts, meaning that the user's code for each sample must execute in 1/48000th of a second, or ~20μs. This is perfectly feasible on the RP2040, but requires some attention to code performance. Specifically;
 
 1. calculations on audio signals usually need to be done with integers rather than floating point.
-2. relatively lengthy calculations (more than ~20μs) must be done on a different RP2040 core to the audio, or split between `ProcessSample` calls to ensure than no one call goes above the maximum duration. In particular, USB handling must be on a different core. The `second_core` example shows one way to execute longer/slower computations for CV signals on the second core, while the `midi_device` example demonstrates one way to use USB on the second core. 
+2. relatively lengthy calculations (more than ~20μs) must either be done on a different RP2040 core to the audio, or split between `ProcessSample` calls to ensure than no one call goes above the maximum duration. In particular, USB handling must be on a different core. 
 3. Particularly for larger programs, it may be necessary to force the code called by `ProcessSample` into RAM, so that delays in fetching of code from the flash card do not cause `ProcessSample()` to exceed its allowed time.
 
 We'll discuss each of these below
 
 ## 1. Integer calculations
 
-Floating-point operations on the RP2040 are software emulated, and are around [35 times slower](https://forums.raspberrypi.com/viewtopic.php?t=308794#p1848188) than the native 32-bit integer addition, subtraction and multiplication.
+Floating-point operations on the RP2040 are software emulated, and are [much slower](https://forums.raspberrypi.com/viewtopic.php?t=308794#p1848188) than the native 32-bit integer addition, subtraction and multiplication.
 
-At the specified 133MHz clock rate, floating point operations take around 500ns, allowing at most 40 (in practice, likely rather fewer) per sample. Even a single call to more complicated floating point functions such as `sin` takes too long to run in the `ProcessSample` function. For this reason, the ComputerCard API does not use floating-point variables.
+While simple floating-point calculations are possible within the `ProcessSample()` function (see, for example, the `sine_wave_float` example), for reasons of speed the ComputerCard class itself does not use floating-point variables in the sample callback.
 
-The approach I have taken instead is to use signed 32-bit integers (`int32_t`, as defined in the `cstdint` header) to process samples, essentially using a fixed-point number representation. The hardware 32-bit integer multiply on the RP2040 makes most operations on such numbers very efficient. 
+The approach taken instead is to use a fixed-point number representation, with operations on samples performed with signed 32-bit integers (`int32_t`, as defined in the `cstdint` header). The hardware 32-bit integer multiply on the RP2040 makes many such operations very efficient. 
 
 ### Example: crossfading audio signals
 Let's look at an example of code which averages the two audio inputs and puts this mixed signal onto both audio outputs:
@@ -270,12 +274,15 @@ Three further comments:
 - The roundoff error on a low-pass filter such as this produces a very primative hysteresis-like effect, which may occasionally be useful. This is used in ComputerCard to reduce noise/jitter in knob values.
 
 ### 2. Lengthy calculations
-Options for dealing with calculations that exceed the available ~20μs are:
+Options for dealing with calculations that exceed the available ~20μs per sample are:
 - optimise these calculations, for example using lookup tables [^3]
-- split the calculations that do not have to be done every sample up in to parts small enough to do in successive `ProcessSample` functions,
 - offload long calculations onto the second RP2040 core.
+- split the calculations that do not have to be done every sample up in to parts small enough to do in successive `ProcessSample` functions,
+
+The `second_core` example shows one way to execute longer/slower computations for CV signals (that is, not at audio-rate) on the second core.
 
 For USB processing, the TinyUSB function `tud_task` may take longer than one sample time, and so this needs to be done on a different core from the audio. See the `midi_device` example for how this can be done. I'm planning to add some multicore stuff into ComputerCard itself, in due course, including an option to run the audio callback on core1, not the default core0.
+
 
 [^3]: While floating point calculations are typically too slow to perform every sample, it's convenient to have them available for calculating lookup tables when the card first starts. Lookup tables can of course be calculated on a much more powerful computer and hard-coded as constant arrays.
 
