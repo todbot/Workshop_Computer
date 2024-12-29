@@ -21,6 +21,8 @@ public:
 	{
 		// constructor
 		sampleRamp = 0;
+		loopRamp = 0;
+		clockRate = 0;
 	};
 
 	virtual void ProcessSample()
@@ -46,7 +48,6 @@ public:
 		int16_t audioL = AudioIn1(); // -2048 to 2047
 		int16_t audioR = AudioIn2(); // -2048 to 2047
 
-		startPos = y * BUFFER_SIZE >> 12;
 
 		// CROSSFADING CV MIXER WITH INPUTS NORMALED TO NOISE AND VOLTAGE OFFSET
 
@@ -78,7 +79,7 @@ public:
 
 		////INTERNAL CLOCK AND RANDOM CLOCK SKIP / SWITCHED GATE
 
-		clockRate = ((4095 - x) * 48000 * 2 + 50) >> 12;
+		clockRate = ((4095 - y) * BUFFER_SIZE * 2 + 50) >> 12;
 
 		if (Connected(Input::Pulse1))
 		{
@@ -148,19 +149,19 @@ public:
 			}
 		};
 
+		// BUFFERS LOOPS/DELAYSSS
+
+		startPos = x * BUFFER_SIZE >> 12;
+
 		if (PulseIn2RisingEdge())
 		{
 			readIndexL = startPos;
 			readIndexR = startPos;
 		};
 
-		// BUFFERS LOOPS/DELAYSSS
+		
 
-		delaySamples = (main * BUFFER_SIZE >> 12);
-
-		int lowPassX = x * 3 >> 2;
-
-		int incr = 4096 - lowPassX + 40;
+		int incr = 2048 - (main>>1) + 40;
 
 		if (s == Switch::Down)
 		{
@@ -180,10 +181,10 @@ public:
 				sampleRamp -= 8192;
 				// Calculate new sample for outputsssss
 				writeSamples(audioL, audioR, cv1, cv2, trigL, trigR);
-				readIndexL = (writeIndexL - delaySamples + BUFFER_SIZE) % BUFFER_SIZE;
-				readIndexR = (writeIndexR - delaySamples + BUFFER_SIZE) % BUFFER_SIZE;
-				AudioOut1(audioBufferL[readIndexL]);
-				AudioOut2(audioBufferR[readIndexR]);
+				readIndexL = (writeIndexL - clockRate + (BUFFER_SIZE * 2)) % BUFFER_SIZE;
+				readIndexR = (writeIndexR - clockRate + (BUFFER_SIZE * 2)) % BUFFER_SIZE;
+				AudioOut1(delayBufferL[readIndexL]);
+				AudioOut2(delayBufferR[readIndexR]);
 				writeIndexL = (writeIndexL + 1) % BUFFER_SIZE;
 				writeIndexR = (writeIndexR + 1) % BUFFER_SIZE;
 			}
@@ -191,30 +192,30 @@ public:
 	};
 
 private:
-	int16_t audioBufferL[BUFFER_SIZE] = {0};
-	int16_t audioBufferR[BUFFER_SIZE] = {0};
+	int16_t delayBufferL[BUFFER_SIZE] = {0};
+	int16_t delayBufferR[BUFFER_SIZE] = {0};
 	int16_t cvBufferL[BUFFER_SIZE] = {0};
 	int16_t cvBufferR[BUFFER_SIZE] = {0};
 	bool triggerBufferL[BUFFER_SIZE] = {0};
 	bool triggerBufferR[BUFFER_SIZE] = {0};
 	int clockRate;
-	int clock = 0;
+	int clock;
 	int pulseTimer1 = 200;
 	int pulseTimer2;
 	bool clockPulse = false;
 	int sampleRamp;
+	int loopRamp;
 	int readIndexL = 0;
 	int readIndexR = 0;
 	int writeIndexL = 0;
 	int writeIndexR = 0;
 	int startPos = 0;
-	int delaySamples = 0;
 
 	void writeSamples(int16_t audioL, int16_t audioR, int16_t cv1, int16_t cv2, bool trigL, bool trigR)
 	{
 		// write samples to buffers
-		audioBufferL[writeIndexL] = audioL;
-		audioBufferR[writeIndexR] = audioR;
+		delayBufferL[writeIndexL] = audioL;
+		delayBufferR[writeIndexR] = audioR;
 		cvBufferL[writeIndexL] = cv1;
 		cvBufferR[writeIndexR] = cv2;
 		triggerBufferL[writeIndexL] = trigL;
