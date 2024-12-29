@@ -11,6 +11,14 @@
 /// and floating-point sine function 'sinf' (not 'sin'), since double calculations
 /// are much slower than float on RP2040.
 
+
+
+
+
+// Define a float equivalent of the (double) constant M_TWOPI
+constexpr float twopi = (float)M_TWOPI;
+
+
 class SineWaveFloat : public ComputerCard
 {
 public:
@@ -27,13 +35,13 @@ public:
 	virtual void ProcessSample()
 	{
 		
-		int32_t out = 2000 * sinf(phase);
+		int32_t out = int32_t(2000 * sinf(phase));
 		
 		AudioOut1(out);
 		AudioOut2(out);
 		
-		phase += M_TWOPI * 440.0f/48000.0f;
-		if (phase > M_TWOPI) phase -= M_TWOPI;
+		phase += twopi * 440.0f/48000.0f;
+		if (phase > twopi) phase -= twopi;
 	}
 };
 

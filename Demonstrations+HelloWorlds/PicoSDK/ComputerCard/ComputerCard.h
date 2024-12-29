@@ -461,7 +461,7 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 	// Internal variables for IIR filters on knobs/cv
 	static volatile int32_t knobssm[4] = { 0, 0, 0, 0 };
 	static volatile int32_t cvsm[2] = { 0, 0 };
-	static int np = 0, np1 = 0, np2 = 0;
+	__attribute__((unused)) static int np = 0, np1 = 0, np2 = 0;
 
 	adc_select_input(0);
 
@@ -869,7 +869,7 @@ void ComputerCard::CalcCalCoeffs(int channel)
 
 	for (int i = 0; i < N; i++)
 	{
-		float v = calibrationTable[channel][i].voltage * 0.1;
+		float v = calibrationTable[channel][i].voltage * 0.1f;
 		float dac = calibrationTable[channel][i].dacSetting;
 		sumV += v;
 		sumDAC += dac;
@@ -888,8 +888,8 @@ void ComputerCard::CalcCalCoeffs(int channel)
 	}
 	calCoeffs[channel].b = (sumDAC - calCoeffs[channel].m * sumV) / N;
 
-	calCoeffs[channel].mi = (calCoeffs[channel].m * 1.333333333333333f + 0.5f);
-	calCoeffs[channel].bi = calCoeffs[channel].b + 0.5f;
+	calCoeffs[channel].mi = int32_t(calCoeffs[channel].m * 1.333333333333333f + 0.5f);
+	calCoeffs[channel].bi = int32_t(calCoeffs[channel].b + 0.5f);
 }
 
 

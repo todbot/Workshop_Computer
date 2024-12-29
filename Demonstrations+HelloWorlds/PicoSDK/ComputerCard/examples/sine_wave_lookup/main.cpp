@@ -10,7 +10,6 @@
 /// See (much simpler) sine_wave_float/ example for the same 440Hz sine
 /// evaluated using floating-point arithmetic.
 
-
 class SineWaveLookup : public ComputerCard
 {
 public:
@@ -34,7 +33,7 @@ public:
 		for (unsigned i=0; i<tableSize; i++)
 		{
 			// just shy of 2^15 * sin
-			sine[i] = 32000*sin(2*i*M_PI/double(tableSize));
+			sine[i] = int16_t(32000*sin(2*i*M_TWOPI/double(tableSize)));
 		}
 
 	}

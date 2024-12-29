@@ -36,6 +36,7 @@ Both audio and CV outs: LFO output
 
  */
 
+constexpr float twopi = (float)M_TWOPI;
 
 class SecondCore : public ComputerCard
 {
@@ -80,7 +81,7 @@ public:
 			// exponentiate a sum of sines with coefficients set by knob X
 			float outf = expf(sinf(phase) + wobbles * (KnobVal(Knob::X)/4096.0f));
 			
-			out = outf * 270; // Copy output over to signed 12-bit integer value
+			out = int16_t(outf * 270); // Copy output over to signed 12-bit integer value
 
 			// Count how many audio samples passed since last loop
 			uint32_t samplesPassed = sampleCount;
@@ -94,9 +95,9 @@ public:
 				
 			// increment phase appropriately, and wrap
 			phase += speed * dt;
-			if (phase > M_TWOPI)
+			if (phase > twopi)
 			{
-				phase -= M_TWOPI;
+				phase -= twopi;
 			}
 
 			// For debugging, turn on LEDs to get some indication of how many
