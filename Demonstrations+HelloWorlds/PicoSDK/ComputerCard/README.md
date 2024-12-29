@@ -68,8 +68,8 @@ For beginners just starting with ComputerCard, the first example to look at is `
 - `passthrough` — simple demonstration of using the jacks, knobs, switch and LEDs.
 - `sample_and_hold` — dual sample and hold, demonstrating jacks, normalisation probe and pseudo-random numbers
 - `second_core` — demonstration of using the second RP2040 core for more CPU-intensive processing than is possible at the 48kHz sample rate
-- `sine_wave` — 440Hz sine wave generator, demonstrating scanning and linear interpolation of a lookup table using integer arithmetic
-- `talkie_pcm` — not a good pedagogical example, but a hack of the [TalkiePCM](https://github.com/pschatzmann/TalkiePCM/) speech library to make it interface with ComputerCard.
+- `sine_wave_float` — 440Hz sine wave generator, using floating-point numbers
+- `sine_wave_lookup` — 440Hz sine wave generator, demonstrating scanning and linear interpolation of a lookup table using integer arithmetic
     
 ### Notes
 - Make sure execution of `ComputerCard::ProcessSample` always runs quickly enough that it has returned before the next execution begins (1/48kHz = ~20μs). (See the [guidance below](#programming) on achieving this)

@@ -23,7 +23,6 @@ add_example(passthrough)
 add_example(sample_and_hold)
 add_example(sine_wave_lookup)
 add_example(sine_wave_float)
-add_example(talkie_pcm)
 
 add_example(midi_device)
 target_link_libraries(midi_device pico_multicore tinyusb_device tinyusb_board )
