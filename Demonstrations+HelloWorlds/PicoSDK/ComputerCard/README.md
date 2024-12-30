@@ -1,5 +1,4 @@
 # ComputerCard
-
 ComputerCard is a  [MIT licensed](https://opensource.org/license/mit) header-only C++ library, that
 manages the hardware aspects of the [Music Thing Modular Workshop
 System Computer](https://www.musicthing.co.uk/workshopsystem/).
@@ -138,6 +137,7 @@ void loop() {
 }
 ```
 - Note: The `Run()` method is blocking (never returns), and therefore takes over control from the Arduino `loop()` function. Code to be executed every sample goes in the ComputerCard `ProcessSample` function.
+- Set 'USB Stack' to 'No USB'
 - Sketch -> Export Compiled Binary
 - Your sketch directory should contain a build/rp2040.rp2040.rpipico directory (or similar) with a .uf2 file.
   Copy this file to your Computer.
