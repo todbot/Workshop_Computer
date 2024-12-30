@@ -4,9 +4,6 @@
 #define BUFFER_SIZE 48000
 #define SMALL_BUFFER_SIZE BUFFER_SIZE >> 1
 
-#define SEMI_TONE static_cast<int32_t>(1 / 12) << 12
-#define WHOLE_TONE static_cast<int32_t>(2 / 12) << 12
-
 uint32_t __not_in_flash_func(rnd12)()
 {
 	static uint32_t lcg_seed = 1;
@@ -44,8 +41,6 @@ public:
 
 		bool clockPulse = false;
 		bool randPulse = false;
-		bool trigL = false;
-		bool trigR = false;
 
 		// Read inputs
 		cv1 = CVIn1();				 // -2048 to 2047
@@ -53,42 +48,11 @@ public:
 		int16_t audioL = AudioIn1(); // -2048 to 2047
 		int16_t audioR = AudioIn2(); // -2048 to 2047
 
-		int16_t sample;
-
-		if (Connected(Input::Pulse1))
-		{
-			// connected
-
-			if (PulseIn1RisingEdge())
-			{
-				CVOut2MIDINote(quantSample(cvMix));
-				lastCVmix = cvMix;
-				if (cvMix > (y - 2048))
-				{
-					PulseOut2(true);
-					trigR = true;
-					pulseTimer2 = 200;
-					LedOn(5, true);
-				}
-				else
-				{
-					pulseTimer1 = 200;
-					PulseOut1(true);
-					trigL = true;
-					LedOn(4, true);
-				}
-			};
-		}
-		else
-		{
-			// not connected, use internal clock
-		};
-
-		
+		int16_t qSample;
 
 		// BUFFERS LOOPS/DELAYSSS
 
-		if (s == Switch::Down && lastSwitchVal != Switch::Down)
+		if ((s == Switch::Down) && (lastSwitchVal != Switch::Down))
 		{
 			runMode = RECORD;
 			loopLength = 0;
@@ -96,11 +60,11 @@ public:
 			audioWriteIndexR = 0;
 			controlWriteIndex = 0;
 		}
-		else if (s == Switch::Up && lastSwitchVal != Switch::Up)
+		else if ((s == Switch::Up) && (lastSwitchVal != Switch::Up))
 		{
 			runMode = DELAY;
 		}
-		else if (s == Switch::Middle && lastSwitchVal != Switch::Middle)
+		else if ((s == Switch::Middle) && (lastSwitchVal != Switch::Middle))
 		{
 			runMode = PLAY;
 			loopRamp = 0;
@@ -111,7 +75,6 @@ public:
 
 		lastSwitchVal = s;
 
-
 		////INTERNAL CLOCK AND RANDOM CLOCK SKIP / SWITCHED GATE
 
 		clockRate = ((4095 - lowPassX) * BUFFER_SIZE * 2 + 50) >> 12;
@@ -120,23 +83,17 @@ public:
 		if (clock > clockRate)
 		{
 			clock = 0;
-			PulseOut1(true);
-			trigL = true;
-			LedOn(4, true);
 			clockPulse = true;
-			pulseTimer1 = 200;
-			if ((runMode != PLAY) && (cvMix > (y - 2048)))
+			PulseOut1(true);
+			if (noise > y-2048)
 			{
-				randPulse = true;	
-				PulseOut2(true);
-				trigR = true;
-				pulseTimer2 = 200;
-				LedOn(5, true);
-			}
+				randPulse = true;
+			};
 		};
 
 		incr = ((4095 - lowPassMain) * 2048 >> 12) + 64;
 
+		qSample = quantSample(cvMix);
 
 		switch (runMode)
 		{
@@ -162,7 +119,21 @@ public:
 				AudioOut2(audioBufferR[audioReadIndexR]);
 				audioWriteIndexL = (audioWriteIndexL + 1) % BUFFER_SIZE;
 				audioWriteIndexR = (audioWriteIndexR + 1) % BUFFER_SIZE;
-			}
+			};
+
+			if((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
+			{
+				CVOut2MIDINote(qSample);
+				LedOn(4, true);
+				pulseTimer1 = 200;
+			};
+
+			if (randPulse)
+			{
+				PulseOut2(true);
+				LedOn(5, true);
+				pulseTimer2 = 200;
+			};	
 
 			break;
 		}
@@ -170,21 +141,26 @@ public:
 		{
 			// reset clock, stop recording, playback, loop at the end of the delay buffer
 
-			cvMix = calcCVMix(noise);
-			
-			sample = quantSample(cvMix);
-
-			if (!Connected(Input::Pulse1) && clockPulse) 
+			if((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
 			{
-				CVOut2MIDINote(sample);
+				CVOut2MIDINote(qSample);
+				LedOn(4, true);
+				pulseTimer1 = 200;
 			};
+
+			if (randPulse)
+			{
+				PulseOut2(true);
+				LedOn(5, true);
+				pulseTimer2 = 200;
+			};	
 
 			sampleRamp += incr;
 
 			if (sampleRamp > 8192)
 			{
 				sampleRamp -= 8192;
-				// Calculate new sample for outputsssss
+				cvMix = calcCVMix(noise);
 				audioBufferL[audioWriteIndexL] = audioL;
 				audioBufferR[audioWriteIndexR] = audioR;
 				AudioOut1(audioL);
@@ -193,16 +169,16 @@ public:
 				cvBuffer[controlWriteIndex] = cvMix;
 				CVOut1(cvMix);
 
-				triggerBuffer[controlWriteIndex] = randPulse;
-				
+				if(pulseTimer2) triggerBuffer[controlWriteIndex] = true;
+				else triggerBuffer[controlWriteIndex] = false;
+
 				audioWriteIndexL = (audioWriteIndexL + 1) % BUFFER_SIZE;
 				audioWriteIndexR = (audioWriteIndexR + 1) % BUFFER_SIZE;
 				controlWriteIndex = (controlWriteIndex + 1) % SMALL_BUFFER_SIZE;
 				loopLength++;
-				loopRamp++;
 			}
 
-
+	
 			break;
 		}
 		case PLAY:
@@ -214,13 +190,12 @@ public:
 			{
 				sampleRamp -= 8192;
 
-				
 				AudioOut1(audioBufferL[audioReadIndexL]);
 				AudioOut2(audioBufferR[audioReadIndexR]);
 
 				CVOut1(cvBuffer[controlReadIndex]);
 
-				if(triggerBuffer[controlReadIndex])
+				if (!triggerBuffer[controlReadIndex] && triggerBuffer[controlReadIndex] != triggerBuffer[(controlReadIndex + 1) % SMALL_BUFFER_SIZE])
 				{
 					PulseOut2(true);
 					LedOn(5, true);
@@ -232,7 +207,7 @@ public:
 				controlReadIndex = (controlReadIndex + 1) % SMALL_BUFFER_SIZE;
 				loopRamp++;
 
-				if(loopRamp >= loopLength)
+				if (loopRamp >= loopLength)
 				{
 					loopRamp = 0;
 					audioReadIndexL = 0;
@@ -244,7 +219,7 @@ public:
 		}
 		};
 
-		// If a pulse is ongoing, keep counting until it ends
+		// If a pulse1 is ongoing, keep counting until it ends
 		if (pulseTimer1)
 		{
 			pulseTimer1--;
@@ -255,7 +230,7 @@ public:
 			}
 		};
 
-		// If a pulse is ongoing, keep counting until it ends
+		// If a pulse2 is ongoing, keep counting until it ends
 		if (pulseTimer2)
 		{
 			pulseTimer2--;
@@ -271,7 +246,7 @@ private:
 	int16_t audioBufferL[BUFFER_SIZE] = {0};
 	int16_t audioBufferR[BUFFER_SIZE] = {0};
 	int16_t cvBuffer[SMALL_BUFFER_SIZE] = {0};
-	bool triggerBuffer[SMALL_BUFFER_SIZE] = {0};
+	bool triggerBuffer[SMALL_BUFFER_SIZE] = {false};
 	int clockRate;
 	int clock;
 	int pulseTimer1 = 200;
