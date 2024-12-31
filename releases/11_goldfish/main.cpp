@@ -106,7 +106,8 @@ public:
 			randPulse = true;
 		};
 
-		incr = ((4095 - lowPassMain) * 2048 >> 12) + 64;
+		int shrinkRange = 1600;
+		incr = ((4095 - main) * (2048 - shrinkRange) >> 12) + shrinkRange;
 
 		switch (runMode)
 		{
@@ -419,17 +420,17 @@ private:
 		else if (Connected(Input::CV1))
 		{
 			thing1 = cv1 * x >> 12;
-			thing2 = y >> 1;
+			thing2 = noise * y >> 12;
 		}
 		else if (Connected(Input::CV2))
 		{
-			thing1 = noise * x >> 12;
+			thing1 = x >> 1;
 			thing2 = cv2 * y >> 12;
 		}
 		else
 		{
-			thing1 = noise * x >> 12;
-			thing2 = y >> 1;
+			thing1 = x >> 1;
+			thing2 = noise * y >> 12;
 		};
 
 		// simple crossfade
