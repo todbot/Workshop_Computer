@@ -18,6 +18,11 @@ bool __not_in_flash_func(zeroCrossing)(int16_t a, int16_t b)
 	return (a < 0 && b >= 0) || (a >= 0 && b < 0);
 };
 
+int __not_in_flash_func(linSquared)(int16_t x)
+{
+	return x * x >> 12;
+};
+
 /// Goldfish
 class Goldfish : public ComputerCard
 {
@@ -117,6 +122,7 @@ public:
 			qSample = quantSample(cvMix);
 
 			CVOut1(cvMix);
+			LedBrightness(2, linSquared(cvMix + 2048));
 
 			sampleRamp += incr;
 
@@ -130,6 +136,8 @@ public:
 				audioReadIndexR = (audioWriteIndexR - clockRate + (BUFFER_SIZE * 2)) % BUFFER_SIZE;
 				AudioOut1(audioBufferL[audioReadIndexL]);
 				AudioOut2(audioBufferR[audioReadIndexR]);
+				LedBrightness(0, linSquared(audioBufferL[audioReadIndexL] + 2048));
+				LedBrightness(1, linSquared(audioBufferR[audioReadIndexR] + 2048));
 				audioWriteIndexL = (audioWriteIndexL + 1) % BUFFER_SIZE;
 				audioWriteIndexR = (audioWriteIndexR + 1) % BUFFER_SIZE;
 			};
@@ -144,6 +152,7 @@ public:
 			if ((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
 			{
 				CVOut2MIDINote(qSample);
+				LedBrightness(3, linSquared(qSample + 2048));
 				LedOn(4, true);
 				pulseTimer1 = 200;
 
@@ -165,9 +174,12 @@ public:
 				audioBufferR[audioWriteIndexR] = audioR;
 				AudioOut1(audioL);
 				AudioOut2(audioR);
+				LedBrightness(0, linSquared(audioBufferL[audioReadIndexL] + 2048));
+				LedBrightness(1, linSquared(audioBufferR[audioReadIndexR] + 2048));
 
 				cvBuffer[controlWriteIndex] = cvMix;
 				CVOut1(cvMix);
+				LedBrightness(2, linSquared(cvMix + 2048));
 
 				audioWriteIndexL++;
 				audioWriteIndexR++;
@@ -205,7 +217,12 @@ public:
 				AudioOut1(audioBufferL[audioReadIndexL]);
 				AudioOut2(audioBufferR[audioReadIndexR]);
 
+				LedBrightness(0, linSquared(audioBufferL[audioReadIndexL] + 2048));
+				LedBrightness(1, linSquared(audioBufferR[audioReadIndexR] + 2048));
+
 				CVOut1(cvBuffer[controlReadIndex]);
+				LedBrightness(2, linSquared(cvBuffer[controlReadIndex] + 2048));
+
 
 				
 
@@ -268,6 +285,7 @@ public:
 		if ((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
 		{
 			CVOut2MIDINote(qSample);
+				LedBrightness(2, linSquared(cvMix + 2048));
 			LedOn(4, true);
 			pulseTimer1 = 200;
 			PulseOut1(true);
