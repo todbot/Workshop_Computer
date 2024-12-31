@@ -2,7 +2,9 @@
 #include "quantiser.h"
 
 #define BUFFER_SIZE 48000
-#define SMALL_BUFFER_SIZE BUFFER_SIZE >> 1
+#define SMALL_BUFFER_SIZE 24000
+
+bool tmp;
 
 uint32_t __not_in_flash_func(rnd12)()
 {
@@ -10,6 +12,11 @@ uint32_t __not_in_flash_func(rnd12)()
 	lcg_seed = 1664525 * lcg_seed + 1013904223;
 	return lcg_seed >> 20;
 }
+
+bool __not_in_flash_func(zeroCrossing)(int16_t a, int16_t b)
+{
+	return (a < 0 && b >= 0) || (a >= 0 && b < 0);
+};
 
 /// Goldfish
 class Goldfish : public ComputerCard
@@ -22,6 +29,8 @@ public:
 		loopRamp = 0;
 		clockRate = 0;
 		runMode = SwitchVal() == Switch::Middle ? PLAY : DELAY;
+		startPosAudio = 0;
+		startPosControl = 0;
 	};
 
 	virtual void ProcessSample()
@@ -50,12 +59,16 @@ public:
 
 		int16_t qSample;
 
+		int16_t lastSampleL = 0;
+		int16_t lastSampleR = 0;
+
 		// BUFFERS LOOPS/DELAYSSS
 
 		if ((s == Switch::Down) && (lastSwitchVal != Switch::Down))
 		{
 			runMode = RECORD;
-			loopLength = 0;
+			audioLoopLength = 0;
+			cvLoopLength = 0;
 			audioWriteIndexL = 0;
 			audioWriteIndexR = 0;
 			controlWriteIndex = 0;
@@ -86,10 +99,9 @@ public:
 		{
 			clock = 0;
 			clockPulse = true;
-			PulseOut1(true);
 		};
 
-		if (cvMix > y - 2048)
+		if (noise > y - 2048)
 		{
 			randPulse = true;
 		};
@@ -157,16 +169,21 @@ public:
 				cvBuffer[controlWriteIndex] = cvMix;
 				CVOut1(cvMix);
 
-				audioWriteIndexL = (audioWriteIndexL + 1) % BUFFER_SIZE;
-				audioWriteIndexR = (audioWriteIndexR + 1) % BUFFER_SIZE;
+				audioWriteIndexL++;
+				audioWriteIndexR++;
+
+				if (audioWriteIndexL >= BUFFER_SIZE)
+				{
+					audioWriteIndexL = 0;
+				} else audioLoopLength++;
 
 				controlWriteIndex++;
 				if (controlWriteIndex >= SMALL_BUFFER_SIZE)
 				{
 					controlWriteIndex = 0;
-				};
+				} else cvLoopLength++;
 
-				loopLength++;
+				
 			}
 
 			break;
@@ -176,6 +193,8 @@ public:
 			// play the loop, ignore the input
 
 			qSample = quantSample(cvBuffer[controlReadIndex]);
+			lastSampleL = audioBufferL[audioReadIndexL];
+			lastSampleR = audioBufferR[audioReadIndexR];
 
 			sampleRamp += incr;
 
@@ -188,8 +207,31 @@ public:
 
 				CVOut1(cvBuffer[controlReadIndex]);
 
-				audioReadIndexL = (audioReadIndexL + 1) % BUFFER_SIZE;
-				audioReadIndexR = (audioReadIndexR + 1) % BUFFER_SIZE;
+				
+
+				if (Connected(Input::Pulse2))
+				{
+					startPosAudio = (cvMix + 2048) * (BUFFER_SIZE - 1) >> 12;
+					startPosControl = (cvMix + 2048) * (SMALL_BUFFER_SIZE - 1) >> 12;
+				}
+				else
+				{
+					startPosAudio = 0;
+					startPosControl = 0;
+				};
+
+				audioReadIndexL++;
+				audioReadIndexR++;
+
+				if (audioReadIndexL >= BUFFER_SIZE)
+				{
+					audioReadIndexL = 0;
+				};
+
+				if (audioReadIndexR >= BUFFER_SIZE)
+				{
+					audioReadIndexR = 0;
+				};
 
 				controlReadIndex++;
 				if (controlReadIndex >= SMALL_BUFFER_SIZE)
@@ -197,14 +239,26 @@ public:
 					controlReadIndex = 0;
 				};
 
+				tmp = zeroCrossing(audioBufferL[audioReadIndexL], lastSampleL) || zeroCrossing(audioBufferR[audioReadIndexR], lastSampleR);
+
+				if (reset && ((Connected(Input::Audio1) && tmp) ||
+							  (Connected(Input::Audio2) && tmp)))
+				{
+					reset = false;
+					loopRamp = 0;
+					audioReadIndexL = startPosAudio;
+					audioReadIndexR = startPosAudio;
+					controlReadIndex = startPosControl;
+				};
+
 				loopRamp++;
 
-				if (loopRamp >= loopLength)
+				if (loopRamp >= audioLoopLength)
 				{
 					loopRamp = 0;
-					audioReadIndexL = 0;
-					audioReadIndexR = 0;
-					controlReadIndex = 0;
+					audioReadIndexL = startPosAudio;
+					audioReadIndexR = startPosAudio;
+					controlReadIndex = startPosControl;
 				};
 			}
 			break;
@@ -216,12 +270,18 @@ public:
 			CVOut2MIDINote(qSample);
 			LedOn(4, true);
 			pulseTimer1 = 200;
+			PulseOut1(true);
 			if (randPulse)
 			{
 				PulseOut2(true);
 				LedOn(5, true);
 				pulseTimer2 = 200;
 			};
+		};
+
+		if (PulseIn2RisingEdge())
+		{
+			reset = true;
 		};
 
 		// If a pulse1 is ongoing, keep counting until it ends
@@ -258,18 +318,21 @@ private:
 	bool clockPulse = false;
 	int sampleRamp;
 	int loopRamp;
-	int audioReadIndexL = 0;
-	int audioReadIndexR = 0;
-	int controlReadIndex = 0;
-	int controlWriteIndex = 0;
-	int audioWriteIndexL = 0;
-	int audioWriteIndexR = 0;
-	int startPos = 0;
+	uint32_t audioReadIndexL = 0;
+	uint32_t audioReadIndexR = 0;
+	uint32_t controlReadIndex = 0;
+	uint32_t controlWriteIndex = 0;
+	uint32_t audioWriteIndexL = 0;
+	uint32_t audioWriteIndexR = 0;
+	uint32_t startPosAudio;
+	uint32_t startPosControl;
 	int lastLowPassX = 0;
 	int lastLowPassMain = 0;
 	int lastCVmix = 0;
 	int incr;
-	int loopLength;
+	int audioLoopLength;
+	int cvLoopLength;
+	bool reset = false;
 
 	Switch lastSwitchVal;
 	int x;
