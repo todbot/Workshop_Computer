@@ -18,11 +18,6 @@ bool __not_in_flash_func(zeroCrossing)(int16_t a, int16_t b)
 	return (a < 0 && b >= 0) || (a >= 0 && b < 0);
 };
 
-int __not_in_flash_func(linSquared)(int16_t x)
-{
-	return x * x >> 12;
-};
-
 /// Goldfish
 class Goldfish : public ComputerCard
 {
@@ -122,7 +117,6 @@ public:
 			qSample = quantSample(cvMix);
 
 			CVOut1(cvMix);
-			LedBrightness(2, linSquared(cvMix + 2048));
 
 			sampleRamp += incr;
 
@@ -136,8 +130,23 @@ public:
 				audioReadIndexR = (audioWriteIndexR - clockRate + (BUFFER_SIZE * 2)) % BUFFER_SIZE;
 				AudioOut1(audioBufferL[audioReadIndexL]);
 				AudioOut2(audioBufferR[audioReadIndexR]);
-				LedBrightness(0, linSquared(audioBufferL[audioReadIndexL] + 2048));
-				LedBrightness(1, linSquared(audioBufferR[audioReadIndexR] + 2048));
+				if (audioBufferL[audioReadIndexL] > 0)
+				{
+					LedBrightness(0, audioBufferL[audioReadIndexL] << 1);
+				}
+				else
+				{
+					LedOff(0);
+				};
+
+				if (audioBufferR[audioReadIndexR] > 0)
+				{
+					LedBrightness(1, audioBufferR[audioReadIndexR] << 1);
+				}
+				else
+				{
+					LedOff(1);
+				};
 				audioWriteIndexL = (audioWriteIndexL + 1) % BUFFER_SIZE;
 				audioWriteIndexR = (audioWriteIndexR + 1) % BUFFER_SIZE;
 			};
@@ -151,8 +160,7 @@ public:
 
 			if ((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
 			{
-				CVOut2MIDINote(qSample);
-				LedBrightness(3, linSquared(qSample + 2048));
+
 				LedOn(4, true);
 				pulseTimer1 = 200;
 
@@ -161,6 +169,8 @@ public:
 					PulseOut2(true);
 					LedOn(5, true);
 					pulseTimer2 = 200;
+
+					CVOut2MIDINote(qSample);
 				};
 			};
 
@@ -174,12 +184,26 @@ public:
 				audioBufferR[audioWriteIndexR] = audioR;
 				AudioOut1(audioL);
 				AudioOut2(audioR);
-				LedBrightness(0, linSquared(audioBufferL[audioReadIndexL] + 2048));
-				LedBrightness(1, linSquared(audioBufferR[audioReadIndexR] + 2048));
+				if (audioL > 0)
+				{
+					LedBrightness(0, audioL << 1);
+				}
+				else
+				{
+					LedOff(0);
+				};
+
+				if (audioR > 0)
+				{
+					LedBrightness(1, audioR << 1);
+				}
+				else
+				{
+					LedOff(1);
+				};
 
 				cvBuffer[controlWriteIndex] = cvMix;
 				CVOut1(cvMix);
-				LedBrightness(2, linSquared(cvMix + 2048));
 
 				audioWriteIndexL++;
 				audioWriteIndexR++;
@@ -187,15 +211,17 @@ public:
 				if (audioWriteIndexL >= BUFFER_SIZE)
 				{
 					audioWriteIndexL = 0;
-				} else audioLoopLength++;
+				}
+				else
+					audioLoopLength++;
 
 				controlWriteIndex++;
 				if (controlWriteIndex >= SMALL_BUFFER_SIZE)
 				{
 					controlWriteIndex = 0;
-				} else cvLoopLength++;
-
-				
+				}
+				else
+					cvLoopLength++;
 			}
 
 			break;
@@ -217,15 +243,26 @@ public:
 				AudioOut1(audioBufferL[audioReadIndexL]);
 				AudioOut2(audioBufferR[audioReadIndexR]);
 
-				LedBrightness(0, linSquared(audioBufferL[audioReadIndexL] + 2048));
-				LedBrightness(1, linSquared(audioBufferR[audioReadIndexR] + 2048));
+				if (audioBufferL[audioReadIndexL] > 0)
+				{
+					LedBrightness(0, audioBufferL[audioReadIndexL] << 1);
+				}
+				else
+				{
+					LedOff(0);
+				};
+
+				if (audioBufferR[audioReadIndexR] > 0)
+				{
+					LedBrightness(1, audioBufferR[audioReadIndexR] << 1);
+				}
+				else
+				{
+					LedOff(1);
+				};
 
 				CVOut1(cvBuffer[controlReadIndex]);
-				LedBrightness(2, linSquared(cvBuffer[controlReadIndex] + 2048));
-
-
-				
-
+			
 				if (Connected(Input::Pulse2))
 				{
 					startPosAudio = (cvMix + 2048) * (BUFFER_SIZE - 1) >> 12;
@@ -284,8 +321,7 @@ public:
 
 		if ((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
 		{
-			CVOut2MIDINote(qSample);
-				LedBrightness(2, linSquared(cvMix + 2048));
+
 			LedOn(4, true);
 			pulseTimer1 = 200;
 			PulseOut1(true);
@@ -294,6 +330,8 @@ public:
 				PulseOut2(true);
 				LedOn(5, true);
 				pulseTimer2 = 200;
+
+				CVOut2MIDINote(qSample);
 			};
 		};
 
@@ -396,6 +434,25 @@ private:
 
 		// simple crossfade
 		result = (thing1 * (4095 - main)) + (thing2 * main) >> 12;
+
+		if (thing1 > 0)
+		{
+			LedBrightness(2, thing1);
+		}
+		else
+		{
+			LedOff(2);
+		};
+
+		if (thing2 > 0)
+		{
+			LedBrightness(3, thing2);
+		}
+		else
+		{
+			LedOff(3);
+		};
+
 		return result;
 	};
 };
