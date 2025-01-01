@@ -25,7 +25,6 @@ public:
 	Goldfish()
 	{
 		// constructor
-		sampleRamp = 0;
 		loopRamp = 0;
 		clockRate = 0;
 		runMode = SwitchVal() == Switch::Middle ? PLAY : DELAY;
@@ -80,7 +79,6 @@ public:
 		else if ((s == Switch::Middle) && (lastSwitchVal != Switch::Middle))
 		{
 			runMode = PLAY;
-			loopRamp = 0;
 			audioReadIndexL = 0;
 			audioReadIndexR = 0;
 			controlReadIndex = 0;
@@ -119,11 +117,11 @@ public:
 
 			CVOut1(cvMix);
 
-			sampleRamp += incr;
+			loopRamp += incr;
 
-			if (sampleRamp > 8192)
+			if (loopRamp > 8192)
 			{
-				sampleRamp -= 8192;
+				loopRamp -= 8192;
 				// Calculate new sample for outputsssss
 				audioBufferL[audioWriteIndexL] = audioL;
 				audioBufferR[audioWriteIndexR] = audioR;
@@ -175,11 +173,11 @@ public:
 				};
 			};
 
-			sampleRamp += incr;
+			loopRamp += incr;
 
-			if (sampleRamp > 8192)
+			if (loopRamp > 8192)
 			{
-				sampleRamp -= 8192;
+				loopRamp -= 8192;
 				cvMix = calcCVMix(noise);
 				audioBufferL[audioWriteIndexL] = audioL;
 				audioBufferR[audioWriteIndexR] = audioR;
@@ -232,14 +230,12 @@ public:
 			// play the loop, ignore the input
 
 			qSample = quantSample(cvBuffer[controlReadIndex]);
-			lastSampleL = audioBufferL[audioReadIndexL];
-			lastSampleR = audioBufferR[audioReadIndexR];
 
-			sampleRamp += incr;
+			loopRamp += incr;
 
-			if (sampleRamp > 8192)
+			if (loopRamp > 8192)
 			{
-				sampleRamp -= 8192;
+				loopRamp -= 8192;
 
 				AudioOut1(audioBufferL[audioReadIndexL]);
 				AudioOut2(audioBufferR[audioReadIndexR]);
@@ -263,7 +259,7 @@ public:
 				};
 
 				CVOut1(cvBuffer[controlReadIndex]);
-			
+
 				if (Connected(Input::Pulse2))
 				{
 					startPosAudio = (cvMix + 2048) * (BUFFER_SIZE - 1) >> 12;
@@ -295,6 +291,9 @@ public:
 				};
 
 				tmp = zeroCrossing(audioBufferL[audioReadIndexL], lastSampleL) || zeroCrossing(audioBufferR[audioReadIndexR], lastSampleR);
+
+				lastSampleL = audioBufferL[audioReadIndexL];
+				lastSampleR = audioBufferR[audioReadIndexR];
 
 				if (reset && ((Connected(Input::Audio1) && tmp) ||
 							  (Connected(Input::Audio2) && tmp)))
@@ -373,7 +372,6 @@ private:
 	int pulseTimer1 = 200;
 	int pulseTimer2;
 	bool clockPulse = false;
-	int sampleRamp;
 	int loopRamp;
 	uint32_t audioReadIndexL = 0;
 	uint32_t audioReadIndexR = 0;
@@ -414,23 +412,23 @@ private:
 
 		if (Connected(Input::CV1) && Connected(Input::CV2))
 		{
-			thing1 = cv1 * x >> 12;
-			thing2 = cv2 * y >> 12;
+			thing1 = cv1 * (x - 2048) >> 11;
+			thing2 = cv2 * (y - 2048) >> 11;
 		}
 		else if (Connected(Input::CV1))
 		{
-			thing1 = cv1 * x >> 12;
+			thing1 = cv1 * (x - 2048) >> 11;
 			thing2 = noise * y >> 12;
 		}
 		else if (Connected(Input::CV2))
 		{
-			thing1 = x >> 1;
-			thing2 = cv2 * y >> 12;
+			thing1 = x - 2048;
+			thing2 = cv2 * (y - 2048) >> 11;
 		}
 		else
 		{
-			thing1 = x >> 1;
-			thing2 = noise * y >> 12;
+			thing1 = x - 2048;
+			thing2 = y * noise >> 12;
 		};
 
 		// simple crossfade
@@ -442,7 +440,7 @@ private:
 		}
 		else
 		{
-			LedOff(2);
+			LedBrightness(2, -1 * thing1);
 		};
 
 		if (thing2 > 0)
@@ -451,7 +449,7 @@ private:
 		}
 		else
 		{
-			LedOff(3);
+			LedBrightness(3, -1 * thing2);
 		};
 
 		return result;
