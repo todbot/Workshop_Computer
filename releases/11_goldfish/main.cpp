@@ -8,457 +8,535 @@ bool tmp;
 
 uint32_t __not_in_flash_func(rnd12)()
 {
-	static uint32_t lcg_seed = 1;
-	lcg_seed = 1664525 * lcg_seed + 1013904223;
-	return lcg_seed >> 20;
+    static uint32_t lcg_seed = 1;
+    lcg_seed = 1664525 * lcg_seed + 1013904223;
+    return lcg_seed >> 20;
 }
 
 bool __not_in_flash_func(zeroCrossing)(int16_t a, int16_t b)
 {
-	return (a < 0 && b >= 0) || (a >= 0 && b < 0);
+    return (a < 0 && b >= 0) || (a >= 0 && b < 0);
 };
+
+int32_t __not_in_flash_func(highpass_process)(int32_t *out, int32_t b, int32_t in)
+{
+    *out += (((in - *out) * b) >> 16);
+    return in - *out;
+}
 
 /// Goldfish
 class Goldfish : public ComputerCard
 {
 public:
-	Goldfish()
-	{
-		// constructor
-		loopRamp = 0;
-		clockRate = 0;
-		runMode = SwitchVal() == Switch::Middle ? PLAY : DELAY;
-		startPosAudio = 0;
-		startPosControl = 0;
-	};
+    Goldfish()
+    {
+        // constructor
+        loopRamp = 0;
+        clockRate = 0;
+        runMode = SwitchVal() == Switch::Middle ? PLAY : DELAY;
+        startPosAudio = 0;
+        startPosControl = 0;
 
-	virtual void ProcessSample()
-	{
+        for (int i = 0; i < BUFFER_SIZE; i++)
+            delaybuf[i] = 0;
+        writeInd = 0;
+        readInd = 0;
+        cvs = 0;
+    };
 
-		int16_t noise = rnd12() - 2048;
-		Switch s = SwitchVal();
+    static constexpr uint32_t bufSize = 48000;
+    int16_t delaybuf[bufSize];
+    unsigned writeInd, readInd, cvs;
+    int32_t ledtimer = 0;
+    int32_t hpf = 0;
 
-		x = KnobVal(Knob::X);
-		y = KnobVal(Knob::Y);
-		main = KnobVal(Knob::Main);
+    virtual void ProcessSample()
+    {
+        int32_t k = KnobVal(Knob::X);
+        int32_t cv = CVIn1() + k;
+        if (cv > 4095)
+            cv = 4095;
+        if (cv < 0)
+            cv = 0;
 
-		int lowPassX = (lastLowPassX * 15 + x) >> 4;
-		int lowPassMain = (lastLowPassMain * 15 + main) >> 4;
-		lastLowPassX = lowPassX;
-		lastLowPassMain = lowPassMain;
+        int cvtarg = cv * cv / 178;
+        cvs = (cvs * 255 + (cvtarg << 5)) >> 8;
 
-		bool clockPulse = false;
-		bool randPulse = false;
+        int cvs1 = cvs >> 7;
+        int r = cvs & 0x7F;
 
-		// Read inputs
-		cv1 = CVIn1();				 // -2048 to 2047
-		cv2 = CVIn2();				 // -2048 to 2047
-		int16_t audioL = AudioIn1(); // -2048 to 2047
-		int16_t audioR = AudioIn2(); // -2048 to 2047
+        readInd = (writeInd + (bufSize << 1) - (cvs1)-1) % bufSize;
+        int32_t fromBuffer1 = delaybuf[readInd];
+        int readInd2 = (writeInd + (bufSize << 1) - (cvs1)-2) % bufSize;
+        int32_t fromBuffer2 = delaybuf[readInd2];
 
-		int16_t qSample;
+        int32_t fromBuffer = (fromBuffer2 * r + fromBuffer1 * (128 - r)) >> 7;
+        int32_t in = AudioIn1();
 
-		int16_t lastSampleL = 0;
-		int16_t lastSampleR = 0;
+        int32_t k2;
 
-		// BUFFERS LOOPS/DELAYSSS
+        if (SwitchVal() == Switch::Up)
+            k2 = 800;
+        else if (SwitchVal() == Switch::Middle)
+            k2 = 2500;
+        else
+            k2 = 4095; // switch down = infinite loop
 
-		if ((s == Switch::Down) && (lastSwitchVal != Switch::Down))
-		{
-			runMode = RECORD;
-			audioLoopLength = 0;
-			cvLoopLength = 0;
-			audioWriteIndexL = 0;
-			audioWriteIndexR = 0;
-			controlWriteIndex = 0;
-		}
-		else if ((s == Switch::Up) && (lastSwitchVal != Switch::Up))
-		{
-			runMode = DELAY;
-		}
-		else if ((s == Switch::Middle) && (lastSwitchVal != Switch::Middle))
-		{
-			runMode = PLAY;
-			audioReadIndexL = 0;
-			audioReadIndexR = 0;
-			controlReadIndex = 0;
-		};
+        int32_t out = (((4095 - ((k2 * k2) >> 12)) * in) >> 12) + (((4095 - (((4095 - k2) * (4095 - k2)) >> 12)) * fromBuffer) >> 12);
 
-		lastSwitchVal = s;
+        int32_t buf_write = highpass_process(&hpf, 200, out);
 
-		////INTERNAL CLOCK AND RANDOM CLOCK SKIP / SWITCHED GATE
+        delaybuf[writeInd] = buf_write;
+        clip(out);
+        AudioOut1(out);
 
-		clockRate = ((4095 - lowPassX) * BUFFER_SIZE * 2 + 50) >> 12;
+        writeInd++;
+        if (writeInd >= bufSize)
+            writeInd = 0;
 
-		cvMix = calcCVMix(noise);
+        ledtimer--;
+        if (ledtimer <= 0)
+            ledtimer = cvs1;
+        LedOn(4, ledtimer < 100);
+        LedBrightness(0, cabs(in << 1));
+        LedBrightness(2, cabs(out << 1));
 
-		clock++;
-		if (clock > clockRate)
-		{
-			clock = 0;
-			clockPulse = true;
-		};
+        // END CHRISG
+        // int16_t noise = rnd12() - 2048;
+        // Switch s = SwitchVal();
 
-		if (noise > y - 2048)
-		{
-			randPulse = true;
-		};
+        // x = KnobVal(Knob::X);
+        // y = KnobVal(Knob::Y);
+        // main = KnobVal(Knob::Main);
 
-		int shrinkRange = 1600;
-		incr = ((4095 - main) * (2048 - shrinkRange) >> 12) + shrinkRange;
+        // int lowPassX = (lastLowPassX * 15 + x) >> 4;
+        // int lowPassMain = (lastLowPassMain * 15 + main) >> 4;
+        // lastLowPassX = lowPassX;
+        // lastLowPassMain = lowPassMain;
 
-		switch (runMode)
-		{
-		case DELAY:
-		{
-			// record the loop, output audio delayed (patch your own feedback) and output normal cv mix signals
+        // bool clockPulse = false;
+        // bool randPulse = false;
 
-			qSample = quantSample(cvMix);
+        // // Read inputs
+        // cv1 = CVIn1();               // -2048 to 2047
+        // cv2 = CVIn2();               // -2048 to 2047
+        // int16_t audioL = AudioIn1(); // -2048 to 2047
+        // int16_t audioR = AudioIn2(); // -2048 to 2047
 
-			CVOut1(cvMix);
+        // int16_t qSample;
 
-			loopRamp += incr;
+        // int16_t lastSampleL = 0;
+        // int16_t lastSampleR = 0;
 
-			if (loopRamp > 8192)
-			{
-				loopRamp -= 8192;
-				// Calculate new sample for outputsssss
-				audioBufferL[audioWriteIndexL] = audioL;
-				audioBufferR[audioWriteIndexR] = audioR;
-				audioReadIndexL = (audioWriteIndexL - clockRate + (BUFFER_SIZE * 2)) % BUFFER_SIZE;
-				audioReadIndexR = (audioWriteIndexR - clockRate + (BUFFER_SIZE * 2)) % BUFFER_SIZE;
-				AudioOut1(audioBufferL[audioReadIndexL]);
-				AudioOut2(audioBufferR[audioReadIndexR]);
-				if (audioBufferL[audioReadIndexL] > 0)
-				{
-					LedBrightness(0, audioBufferL[audioReadIndexL] << 1);
-				}
-				else
-				{
-					LedOff(0);
-				};
+        // // BUFFERS LOOPS/DELAYSSS
 
-				if (audioBufferR[audioReadIndexR] > 0)
-				{
-					LedBrightness(1, audioBufferR[audioReadIndexR] << 1);
-				}
-				else
-				{
-					LedOff(1);
-				};
-				audioWriteIndexL = (audioWriteIndexL + 1) % BUFFER_SIZE;
-				audioWriteIndexR = (audioWriteIndexR + 1) % BUFFER_SIZE;
-			};
+        // if ((s == Switch::Down) && (lastSwitchVal != Switch::Down))
+        // {
+        //     runMode = RECORD;
+        //     audioLoopLength = 0;
+        //     cvLoopLength = 0;
+        //     audioWriteIndexL = 0;
+        //     audioWriteIndexR = 0;
+        //     controlWriteIndex = 0;
+        // }
+        // else if ((s == Switch::Up) && (lastSwitchVal != Switch::Up))
+        // {
+        //     runMode = DELAY;
+        // }
+        // else if ((s == Switch::Middle) && (lastSwitchVal != Switch::Middle))
+        // {
+        //     runMode = PLAY;
+        //     audioReadIndexL = 0;
+        //     audioReadIndexR = 0;
+        //     controlReadIndex = 0;
+        // };
 
-			break;
-		}
-		case RECORD:
-		{
-			// reset clock, stop recording, playback, loop at the end of the delay buffer
-			qSample = quantSample(cvMix);
+        // lastSwitchVal = s;
 
-			if ((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
-			{
+        // ////INTERNAL CLOCK AND RANDOM CLOCK SKIP / SWITCHED GATE
 
-				LedOn(4, true);
-				pulseTimer1 = 200;
+        // clockRate = ((4095 - lowPassX) * BUFFER_SIZE * 2 + 50) >> 12;
 
-				if (randPulse)
-				{
-					PulseOut2(true);
-					LedOn(5, true);
-					pulseTimer2 = 200;
+        // cvMix = calcCVMix(noise);
 
-					CVOut2MIDINote(qSample);
-				};
-			};
+        // clock++;
+        // if (clock > clockRate)
+        // {
+        //     clock = 0;
+        //     clockPulse = true;
+        // };
 
-			loopRamp += incr;
+        // if (noise > y - 2048)
+        // {
+        //     randPulse = true;
+        // };
 
-			if (loopRamp > 8192)
-			{
-				loopRamp -= 8192;
-				cvMix = calcCVMix(noise);
-				audioBufferL[audioWriteIndexL] = audioL;
-				audioBufferR[audioWriteIndexR] = audioR;
-				AudioOut1(audioL);
-				AudioOut2(audioR);
-				if (audioL > 0)
-				{
-					LedBrightness(0, audioL << 1);
-				}
-				else
-				{
-					LedOff(0);
-				};
+        // int shrinkRange = 1600;
+        // incr = ((4095 - main) * (2048 - shrinkRange) >> 12) + shrinkRange;
 
-				if (audioR > 0)
-				{
-					LedBrightness(1, audioR << 1);
-				}
-				else
-				{
-					LedOff(1);
-				};
+        // switch (runMode)
+        // {
+        // case DELAY:
+        // {
+        //     // record the loop, output audio delayed (patch your own feedback) and output normal cv mix signals
 
-				cvBuffer[controlWriteIndex] = cvMix;
-				CVOut1(cvMix);
+        //     qSample = quantSample(cvMix);
 
-				audioWriteIndexL++;
-				audioWriteIndexR++;
+        //     CVOut1(cvMix);
 
-				if (audioWriteIndexL >= BUFFER_SIZE)
-				{
-					audioWriteIndexL = 0;
-				}
-				else
-					audioLoopLength++;
+        //     loopRamp += incr;
 
-				controlWriteIndex++;
-				if (controlWriteIndex >= SMALL_BUFFER_SIZE)
-				{
-					controlWriteIndex = 0;
-				}
-				else
-					cvLoopLength++;
-			}
+        //     if (loopRamp > 8192)
+        //     {
+        //         loopRamp -= 8192;
+        //         // Calculate new sample for outputsssss
+        //         audioBufferL[audioWriteIndexL] = audioL;
+        //         audioBufferR[audioWriteIndexR] = audioR;
+        //         audioReadIndexL = (audioWriteIndexL - clockRate + (BUFFER_SIZE * 2)) % BUFFER_SIZE;
+        //         audioReadIndexR = (audioWriteIndexR - clockRate + (BUFFER_SIZE * 2)) % BUFFER_SIZE;
+        //         AudioOut1(audioBufferL[audioReadIndexL]);
+        //         AudioOut2(audioBufferR[audioReadIndexR]);
+        //         if (audioBufferL[audioReadIndexL] > 0)
+        //         {
+        //             LedBrightness(0, audioBufferL[audioReadIndexL] << 1);
+        //         }
+        //         else
+        //         {
+        //             LedOff(0);
+        //         };
 
-			break;
-		}
-		case PLAY:
-		{
-			// play the loop, ignore the input
+        //         if (audioBufferR[audioReadIndexR] > 0)
+        //         {
+        //             LedBrightness(1, audioBufferR[audioReadIndexR] << 1);
+        //         }
+        //         else
+        //         {
+        //             LedOff(1);
+        //         };
+        //         audioWriteIndexL = (audioWriteIndexL + 1) % BUFFER_SIZE;
+        //         audioWriteIndexR = (audioWriteIndexR + 1) % BUFFER_SIZE;
+        //     };
 
-			qSample = quantSample(cvBuffer[controlReadIndex]);
+        //     break;
+        // }
+        // case RECORD:
+        // {
+        //     // reset clock, stop recording, playback, loop at the end of the delay buffer
+        //     qSample = quantSample(cvMix);
 
-			loopRamp += incr;
+        //     if ((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
+        //     {
 
-			if (loopRamp > 8192)
-			{
-				loopRamp -= 8192;
+        //         LedOn(4, true);
+        //         pulseTimer1 = 200;
 
-				AudioOut1(audioBufferL[audioReadIndexL]);
-				AudioOut2(audioBufferR[audioReadIndexR]);
+        //         if (randPulse)
+        //         {
+        //             PulseOut2(true);
+        //             LedOn(5, true);
+        //             pulseTimer2 = 200;
 
-				if (audioBufferL[audioReadIndexL] > 0)
-				{
-					LedBrightness(0, audioBufferL[audioReadIndexL] << 1);
-				}
-				else
-				{
-					LedOff(0);
-				};
+        //             CVOut2MIDINote(qSample);
+        //         };
+        //     };
 
-				if (audioBufferR[audioReadIndexR] > 0)
-				{
-					LedBrightness(1, audioBufferR[audioReadIndexR] << 1);
-				}
-				else
-				{
-					LedOff(1);
-				};
+        //     loopRamp += incr;
 
-				CVOut1(cvBuffer[controlReadIndex]);
+        //     if (loopRamp > 8192)
+        //     {
+        //         loopRamp -= 8192;
+        //         cvMix = calcCVMix(noise);
+        //         audioBufferL[audioWriteIndexL] = audioL;
+        //         audioBufferR[audioWriteIndexR] = audioR;
+        //         AudioOut1(audioL);
+        //         AudioOut2(audioR);
+        //         if (audioL > 0)
+        //         {
+        //             LedBrightness(0, audioL << 1);
+        //         }
+        //         else
+        //         {
+        //             LedOff(0);
+        //         };
 
-				if (Connected(Input::Pulse2))
-				{
-					startPosAudio = (cvMix + 2048) * (BUFFER_SIZE - 1) >> 12;
-					startPosControl = (cvMix + 2048) * (SMALL_BUFFER_SIZE - 1) >> 12;
-				}
-				else
-				{
-					startPosAudio = 0;
-					startPosControl = 0;
-				};
+        //         if (audioR > 0)
+        //         {
+        //             LedBrightness(1, audioR << 1);
+        //         }
+        //         else
+        //         {
+        //             LedOff(1);
+        //         };
 
-				audioReadIndexL++;
-				audioReadIndexR++;
+        //         cvBuffer[controlWriteIndex] = cvMix;
+        //         CVOut1(cvMix);
 
-				if (audioReadIndexL >= BUFFER_SIZE)
-				{
-					audioReadIndexL = 0;
-				};
+        //         audioWriteIndexL++;
+        //         audioWriteIndexR++;
 
-				if (audioReadIndexR >= BUFFER_SIZE)
-				{
-					audioReadIndexR = 0;
-				};
+        //         if (audioWriteIndexL >= BUFFER_SIZE)
+        //         {
+        //             audioWriteIndexL = 0;
+        //         }
+        //         else
+        //             audioLoopLength++;
 
-				controlReadIndex++;
-				if (controlReadIndex >= SMALL_BUFFER_SIZE)
-				{
-					controlReadIndex = 0;
-				};
+        //         controlWriteIndex++;
+        //         if (controlWriteIndex >= SMALL_BUFFER_SIZE)
+        //         {
+        //             controlWriteIndex = 0;
+        //         }
+        //         else
+        //             cvLoopLength++;
+        //     }
 
-				tmp = zeroCrossing(audioBufferL[audioReadIndexL], lastSampleL) || zeroCrossing(audioBufferR[audioReadIndexR], lastSampleR);
+        //     break;
+        // }
+        // case PLAY:
+        // {
+        //     // play the loop, ignore the input
 
-				lastSampleL = audioBufferL[audioReadIndexL];
-				lastSampleR = audioBufferR[audioReadIndexR];
+        //     qSample = quantSample(cvBuffer[controlReadIndex]);
 
-				if (reset && ((Connected(Input::Audio1) && tmp) ||
-							  (Connected(Input::Audio2) && tmp)))
-				{
-					reset = false;
-					loopRamp = 0;
-					audioReadIndexL = startPosAudio;
-					audioReadIndexR = startPosAudio;
-					controlReadIndex = startPosControl;
-				};
+        //     loopRamp += incr;
 
-				loopRamp++;
+        //     if (loopRamp > 8192)
+        //     {
+        //         loopRamp -= 8192;
 
-				if (loopRamp >= audioLoopLength)
-				{
-					loopRamp = 0;
-					audioReadIndexL = startPosAudio;
-					audioReadIndexR = startPosAudio;
-					controlReadIndex = startPosControl;
-				};
-			}
-			break;
-		}
-		};
+        //         AudioOut1(audioBufferL[audioReadIndexL]);
+        //         AudioOut2(audioBufferR[audioReadIndexR]);
 
-		if ((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
-		{
+        //         if (audioBufferL[audioReadIndexL] > 0)
+        //         {
+        //             LedBrightness(0, audioBufferL[audioReadIndexL] << 1);
+        //         }
+        //         else
+        //         {
+        //             LedOff(0);
+        //         };
 
-			LedOn(4, true);
-			pulseTimer1 = 200;
-			PulseOut1(true);
-			if (randPulse)
-			{
-				PulseOut2(true);
-				LedOn(5, true);
-				pulseTimer2 = 200;
+        //         if (audioBufferR[audioReadIndexR] > 0)
+        //         {
+        //             LedBrightness(1, audioBufferR[audioReadIndexR] << 1);
+        //         }
+        //         else
+        //         {
+        //             LedOff(1);
+        //         };
 
-				CVOut2MIDINote(qSample);
-			};
-		};
+        //         CVOut1(cvBuffer[controlReadIndex]);
 
-		if (PulseIn2RisingEdge())
-		{
-			reset = true;
-		};
+        //         if (Connected(Input::Pulse2))
+        //         {
+        //             startPosAudio = (cvMix + 2048) * (BUFFER_SIZE - 1) >> 12;
+        //             startPosControl = (cvMix + 2048) * (SMALL_BUFFER_SIZE - 1) >> 12;
+        //         }
+        //         else
+        //         {
+        //             startPosAudio = 0;
+        //             startPosControl = 0;
+        //         };
 
-		// If a pulse1 is ongoing, keep counting until it ends
-		if (pulseTimer1)
-		{
-			pulseTimer1--;
-			if (pulseTimer1 == 0) // pulse ends
-			{
-				PulseOut1(false);
-				LedOff(4);
-			}
-		};
+        //         audioReadIndexL++;
+        //         audioReadIndexR++;
 
-		// If a pulse2 is ongoing, keep counting until it ends
-		if (pulseTimer2)
-		{
-			pulseTimer2--;
-			if (pulseTimer2 == 0) // pulse ends
-			{
-				PulseOut2(false);
-				LedOff(5);
-			}
-		};
-	};
+        //         if (audioReadIndexL >= BUFFER_SIZE)
+        //         {
+        //             audioReadIndexL = 0;
+        //         };
+
+        //         if (audioReadIndexR >= BUFFER_SIZE)
+        //         {
+        //             audioReadIndexR = 0;
+        //         };
+
+        //         controlReadIndex++;
+        //         if (controlReadIndex >= SMALL_BUFFER_SIZE)
+        //         {
+        //             controlReadIndex = 0;
+        //         };
+
+        //         tmp = zeroCrossing(audioBufferL[audioReadIndexL], lastSampleL) || zeroCrossing(audioBufferR[audioReadIndexR], lastSampleR);
+
+        //         lastSampleL = audioBufferL[audioReadIndexL];
+        //         lastSampleR = audioBufferR[audioReadIndexR];
+
+        //         if (reset && ((Connected(Input::Audio1) && tmp) ||
+        //                       (Connected(Input::Audio2) && tmp)))
+        //         {
+        //             reset = false;
+        //             loopRamp = 0;
+        //             audioReadIndexL = startPosAudio;
+        //             audioReadIndexR = startPosAudio;
+        //             controlReadIndex = startPosControl;
+        //         };
+
+        //         loopRamp++;
+
+        //         if (loopRamp >= audioLoopLength)
+        //         {
+        //             loopRamp = 0;
+        //             audioReadIndexL = startPosAudio;
+        //             audioReadIndexR = startPosAudio;
+        //             controlReadIndex = startPosControl;
+        //         };
+        //     }
+        //     break;
+        // }
+        // };
+
+        // if ((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
+        // {
+
+        //     LedOn(4, true);
+        //     pulseTimer1 = 200;
+        //     PulseOut1(true);
+        //     if (randPulse)
+        //     {
+        //         PulseOut2(true);
+        //         LedOn(5, true);
+        //         pulseTimer2 = 200;
+
+        //         CVOut2MIDINote(qSample);
+        //     };
+        // };
+
+        // if (PulseIn2RisingEdge())
+        // {
+        //     reset = true;
+        // };
+
+        // // If a pulse1 is ongoing, keep counting until it ends
+        // if (pulseTimer1)
+        // {
+        //     pulseTimer1--;
+        //     if (pulseTimer1 == 0) // pulse ends
+        //     {
+        //         PulseOut1(false);
+        //         LedOff(4);
+        //     }
+        // };
+
+        // // If a pulse2 is ongoing, keep counting until it ends
+        // if (pulseTimer2)
+        // {
+        //     pulseTimer2--;
+        //     if (pulseTimer2 == 0) // pulse ends
+        //     {
+        //         PulseOut2(false);
+        //         LedOff(5);
+        //     }
+        // };
+    };
 
 private:
-	int16_t audioBufferL[BUFFER_SIZE] = {0};
-	int16_t audioBufferR[BUFFER_SIZE] = {0};
-	int16_t cvBuffer[SMALL_BUFFER_SIZE] = {0};
-	int clockRate;
-	int clock;
-	int pulseTimer1 = 200;
-	int pulseTimer2;
-	bool clockPulse = false;
-	int loopRamp;
-	uint32_t audioReadIndexL = 0;
-	uint32_t audioReadIndexR = 0;
-	uint32_t controlReadIndex = 0;
-	uint32_t controlWriteIndex = 0;
-	uint32_t audioWriteIndexL = 0;
-	uint32_t audioWriteIndexR = 0;
-	uint32_t startPosAudio;
-	uint32_t startPosControl;
-	int lastLowPassX = 0;
-	int lastLowPassMain = 0;
-	int lastCVmix = 0;
-	int incr;
-	int audioLoopLength;
-	int cvLoopLength;
-	bool reset = false;
+    int16_t cvBuffer[SMALL_BUFFER_SIZE] = {0};
+    int clockRate;
+    int clock;
+    int pulseTimer1 = 200;
+    int pulseTimer2;
+    bool clockPulse = false;
+    int loopRamp;
+    uint32_t audioReadIndexL = 0;
+    uint32_t audioReadIndexR = 0;
+    uint32_t controlReadIndex = 0;
+    uint32_t controlWriteIndex = 0;
+    uint32_t audioWriteIndexL = 0;
+    uint32_t audioWriteIndexR = 0;
+    uint32_t startPosAudio;
+    uint32_t startPosControl;
+    int lastLowPassX = 0;
+    int lastLowPassMain = 0;
+    int lastCVmix = 0;
+    int incr;
+    int audioLoopLength;
+    int cvLoopLength;
+    bool reset = false;
 
-	Switch lastSwitchVal;
-	int x;
-	int y;
-	int main;
-	int16_t cv1;
-	int16_t cv2;
-	int16_t cvMix;
+    Switch lastSwitchVal;
+    int x;
+    int y;
+    int main;
+    int16_t cv1;
+    int16_t cv2;
+    int16_t cvMix;
 
-	enum RunMode
-	{
-		RECORD,
-		DELAY,
-		PLAY
-	} runMode;
+    enum RunMode
+    {
+        RECORD,
+        DELAY,
+        PLAY
+    } runMode;
 
-	int16_t calcCVMix(int16_t noise)
-	{
-		int16_t result = 0;
-		int16_t thing1 = 0;
-		int16_t thing2 = 0;
+    int16_t calcCVMix(int16_t noise)
+    {
+        int16_t result = 0;
+        int16_t thing1 = 0;
+        int16_t thing2 = 0;
 
-		if (Connected(Input::CV1) && Connected(Input::CV2))
-		{
-			thing1 = cv1 * (x - 2048) >> 11;
-			thing2 = cv2 * (y - 2048) >> 11;
-		}
-		else if (Connected(Input::CV1))
-		{
-			thing1 = cv1 * (x - 2048) >> 11;
-			thing2 = noise * y >> 12;
-		}
-		else if (Connected(Input::CV2))
-		{
-			thing1 = x - 2048;
-			thing2 = cv2 * (y - 2048) >> 11;
-		}
-		else
-		{
-			thing1 = x - 2048;
-			thing2 = y * noise >> 12;
-		};
+        if (Connected(Input::CV1) && Connected(Input::CV2))
+        {
+            thing1 = cv1 * (x - 2048) >> 11;
+            thing2 = cv2 * (y - 2048) >> 11;
+        }
+        else if (Connected(Input::CV1))
+        {
+            thing1 = cv1 * (x - 2048) >> 11;
+            thing2 = noise * y >> 12;
+        }
+        else if (Connected(Input::CV2))
+        {
+            thing1 = x - 2048;
+            thing2 = cv2 * (y - 2048) >> 11;
+        }
+        else
+        {
+            thing1 = x - 2048;
+            thing2 = y * noise >> 12;
+        };
 
-		// simple crossfade
-		result = (thing1 * (4095 - main)) + (thing2 * main) >> 12;
+        // simple crossfade
+        result = (thing1 * (4095 - main)) + (thing2 * main) >> 12;
 
-		if (thing1 > 0)
-		{
-			LedBrightness(2, thing1);
-		}
-		else
-		{
-			LedBrightness(2, -1 * thing1);
-		};
+        if (thing1 > 0)
+        {
+            LedBrightness(2, thing1);
+        }
+        else
+        {
+            LedBrightness(2, -1 * thing1);
+        };
 
-		if (thing2 > 0)
-		{
-			LedBrightness(3, thing2);
-		}
-		else
-		{
-			LedBrightness(3, -1 * thing2);
-		};
+        if (thing2 > 0)
+        {
+            LedBrightness(3, thing2);
+        }
+        else
+        {
+            LedBrightness(3, -1 * thing2);
+        };
 
-		return result;
-	};
+        return result;
+    };
+
+    void clip(int32_t &a)
+    {
+        if (a < -2047)
+            a = -2047;
+        if (a > 2047)
+            a = 2047;
+    }
+
+    int32_t cabs(int32_t a)
+    {
+        return (a > 0) ? a : -a;
+    }
 };
 
 int main()
 {
-	Goldfish gf;
-	gf.EnableNormalisationProbe();
-	gf.Run();
+    Goldfish gf;
+    gf.EnableNormalisationProbe();
+    gf.Run();
 }
