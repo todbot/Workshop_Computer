@@ -50,6 +50,8 @@ public:
     int32_t ledtimer = 0;
     int32_t hpf = 0;
     bool checkZero = false;
+    int phaseL = 0;
+    int phaseR = 0;
 
     virtual void ProcessSample()
     {
@@ -125,7 +127,7 @@ public:
             if (cvR < 0)
                 cvR = 0;
 
-            int cvtargL= cvL * cvL / 178;
+            int cvtargL = cvL * cvL / 178;
             int cvtargR = cvR * cvR / 178;
             cvsL = (cvsL * 255 + (cvtargL << 5)) >> 8;
             cvsR = (cvsR * 255 + (cvtargR << 5)) >> 8;
@@ -147,7 +149,6 @@ public:
 
             int32_t fromBufferL = (fromBuffer2L * rL + fromBuffer1L * (128 - rL)) >> 7;
             int32_t fromBufferR = (fromBuffer2R * rR + fromBuffer1R * (128 - rR)) >> 7;
-
 
             CVOut1(cvMix);
 
@@ -191,7 +192,6 @@ public:
 
             cvMix = calcCVMix(noise);
 
-            
             break;
         }
         case PLAY:
@@ -200,58 +200,59 @@ public:
 
             qSample = quantSample(cvBuf[readIndCV]);
 
-             // Delay code from Chris's amazing Utility Pair modfified slightly to remove internal feedback and add stereo
-            int32_t kL = 2048 - KnobVal(Knob::Main);
-            int32_t kR = KnobVal(Knob::Main) - 2048;
-            int32_t cvL = kL + AudioIn2();
-            int32_t cvR = kR + AudioIn2();
-            if (cvL > 2047)
-                cvL = 2047;
-            if (cvL < -2047)
-                cvL = -2047;
+            int32_t k = KnobVal(Knob::Main) >> 1;
+            int32_t dphaseL = k + AudioIn2();
+            int32_t dphaseR = (2047 - k) + AudioIn2();
+            dphaseL -= 1024;
+            dphaseR -= 1024;
 
-            if (cvR > 4095)
-                cvR = 4095;
-            if (cvR < 0)
-                cvR = 0;
+            phaseL += dphaseL >> 1;
+            phaseR += dphaseR >> 1;
 
-            int cvtargL= cvL / 64;
-            int cvtargR = cvR / 64;
-            cvsL = (cvsL * 255 + (cvtargL << 5)) >> 8;
-            cvsR = (cvsR * 255 + (cvtargR << 5)) >> 8;
+            if (phaseL < 0)
+            {
+                phaseL += bufSize << 8;
+            }
+            if (phaseL > (bufSize << 8))
+            {
+                phaseL -= bufSize << 8;
+            }
 
-            int cvs1L = cvsL >> 7;
-            int cvs1R = cvsR >> 7;
+            if (phaseR < 0)
+            {
+                phaseR += bufSize << 8;
+            }
+            if (phaseR > (bufSize << 8))
+            {
+                phaseR -= bufSize << 8;
+            }
 
-            int rL = cvsL & 0x7F;
-            int rR = cvsR & 0x7F;
+            int32_t rL = phaseL & 0xFF;
+            int32_t readIndL = phaseL >> 8;
+            int32_t rR = phaseR & 0xFF;
+            int32_t readIndR = phaseR >> 8;
 
-             readIndL = (readIndL + (bufSize << 1) - (cvs1L)-1) % bufSize;
-            readIndR = (readIndR + (bufSize << 1) - (cvs1R)-1) % bufSize;
-            int32_t fromBuffer1L = delaybuf[readIndL];
-            int32_t fromBuffer1R = delaybuf[readIndR];
-            int readInd2L = (readIndL + (bufSize << 1) - (cvs1L)-2) % bufSize;
-            int readInd2R = (readIndR + (bufSize << 1) - (cvs1R)-2) % bufSize;
-            int32_t fromBuffer2L = delaybuf[readInd2L];
-            int32_t fromBuffer2R = delaybuf[readInd2R];
+            int32_t valL = (delaybuf[readIndL] << 3) * (265 - rL) + (delaybuf[(readIndL + 1) % bufSize] << 3) * (rL);
+            int32_t valR = (delaybuf[readIndR] << 3) * (265 - rR) + (delaybuf[(readIndR + 1) % bufSize] << 3) * (rR);
 
-            int32_t fromBufferL = (fromBuffer2L * rL + fromBuffer1L * (128 - rL)) >> 7;
-            int32_t fromBufferR = (fromBuffer2R * rR + fromBuffer1R * (128 - rR)) >> 7;
+            valL >>= 12;
+            valR >>= 12;
 
+            clip(valL);
+            clip(valR);
+
+            AudioOut1(valL);
+            AudioOut2(valR);
 
             CVOut1(cvMix);
 
-            int32_t outL = fromBufferL;
-            int32_t outR = fromBufferR;
+            // int32_t outL = fromBufferL;
+            // int32_t outR = fromBufferR;
 
-            clip(outL);
-            clip(outR);
-            AudioOut1(outL);
-            AudioOut2(outR);
-
-            writeInd++;
-            if (writeInd >= bufSize)
-                writeInd = 0;
+            // clip(outL);
+            // clip(outR);
+            // AudioOut1(outL);
+            // AudioOut2(outR);
 
             // if (Connected(Input::Pulse2))
             // {
