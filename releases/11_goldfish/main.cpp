@@ -93,7 +93,8 @@ public:
         else if ((s == Switch::Middle) && (lastSwitchVal != Switch::Middle))
         {
             runMode = PLAY;
-            writeInd = startPos;
+            readIndL = startPos;
+            readIndR = startPos;
             loopRamp = 0;
         };
 
@@ -199,36 +200,80 @@ public:
 
             qSample = quantSample(cvBuf[readIndCV]);
 
-            loopRamp++;
-            if (loopRamp >= audioLoopLength)
-            {
-                loopRamp = 0;
-                writeInd = startPos;
-            }
+             // Delay code from Chris's amazing Utility Pair modfified slightly to remove internal feedback and add stereo
+            int32_t kL = 2048 - KnobVal(Knob::Main);
+            int32_t kR = KnobVal(Knob::Main) - 2048;
+            int32_t cvL = kL + AudioIn2();
+            int32_t cvR = kR + AudioIn2();
+            if (cvL > 2047)
+                cvL = 2047;
+            if (cvL < -2047)
+                cvL = -2047;
 
-            CVOut1(cvBuf[readIndCV]);
+            if (cvR > 4095)
+                cvR = 4095;
+            if (cvR < 0)
+                cvR = 0;
 
-            if (Connected(Input::Pulse2))
-            {
-                startPos = (cvMix + 2048) * (bufSize - 1) >> 12;
-            }
-            else
-            {
-                startPos = 0;
-            };
+            int cvtargL= cvL / 64;
+            int cvtargR = cvR / 64;
+            cvsL = (cvsL * 255 + (cvtargL << 5)) >> 8;
+            cvsR = (cvsR * 255 + (cvtargR << 5)) >> 8;
 
-            checkZero = zeroCrossing(fromBufferL, lastSampleL) || zeroCrossing(fromBufferR, lastSampleR);
+            int cvs1L = cvsL >> 7;
+            int cvs1R = cvsR >> 7;
 
-            lastSampleL = fromBufferL;
-            lastSampleR = fromBufferR;
+            int rL = cvsL & 0x7F;
+            int rR = cvsR & 0x7F;
 
-            if (reset && ((Connected(Input::Audio1) && checkZero) ||
-                          (Connected(Input::Audio2) && checkZero)))
-            {
-                reset = false;
-                loopRamp = 0;
-                writeInd = startPos;
-            };
+             readIndL = (readIndL + (bufSize << 1) - (cvs1L)-1) % bufSize;
+            readIndR = (readIndR + (bufSize << 1) - (cvs1R)-1) % bufSize;
+            int32_t fromBuffer1L = delaybuf[readIndL];
+            int32_t fromBuffer1R = delaybuf[readIndR];
+            int readInd2L = (readIndL + (bufSize << 1) - (cvs1L)-2) % bufSize;
+            int readInd2R = (readIndR + (bufSize << 1) - (cvs1R)-2) % bufSize;
+            int32_t fromBuffer2L = delaybuf[readInd2L];
+            int32_t fromBuffer2R = delaybuf[readInd2R];
+
+            int32_t fromBufferL = (fromBuffer2L * rL + fromBuffer1L * (128 - rL)) >> 7;
+            int32_t fromBufferR = (fromBuffer2R * rR + fromBuffer1R * (128 - rR)) >> 7;
+
+
+            CVOut1(cvMix);
+
+            int32_t outL = fromBufferL;
+            int32_t outR = fromBufferR;
+
+            clip(outL);
+            clip(outR);
+            AudioOut1(outL);
+            AudioOut2(outR);
+
+            writeInd++;
+            if (writeInd >= bufSize)
+                writeInd = 0;
+
+            // if (Connected(Input::Pulse2))
+            // {
+            //     startPos = (cvMix + 2048) * (bufSize - 1) >> 12;
+            // }
+            // else
+            // {
+            //     startPos = 0;
+            // };
+
+            // checkZero = zeroCrossing(fromBufferL, lastSampleL) || zeroCrossing(fromBufferR, lastSampleR);
+
+            // lastSampleL = fromBufferL;
+            // lastSampleR = fromBufferR;
+
+            // if (reset && ((Connected(Input::Audio1) && checkZero) ||
+            //               (Connected(Input::Audio2) && checkZero)))
+            // {
+            //     reset = false;
+            //     loopRamp = 0;
+            //     writeInd = startPos;
+            // };
             break;
         }
         };
