@@ -28,7 +28,6 @@ public:
     Goldfish()
     {
         // constructor
-        loopRamp = 0;
         runMode = SwitchVal() == Switch::Middle ? PLAY : DELAY;
         startPos = 0;
 
@@ -85,7 +84,7 @@ public:
         if ((s == Switch::Down) && (lastSwitchVal != Switch::Down))
         {
             runMode = RECORD;
-            audioLoopLength = 0;
+            loopLength = 0;
             writeInd = 0;
         }
         else if ((s == Switch::Up) && (lastSwitchVal != Switch::Up))
@@ -97,7 +96,6 @@ public:
             runMode = PLAY;
             readIndL = startPos;
             readIndR = startPos;
-            loopRamp = 0;
         };
 
         cvMix = calcCVMix(noise);
@@ -127,8 +125,8 @@ public:
             if (cvR < 0)
                 cvR = 0;
 
-            int cvtargL = cvL * cvL / 178;
-            int cvtargR = cvR * cvR / 178;
+            int cvtargL = cvL * cvL / 100;
+            int cvtargR = cvR * cvR / 100;
             cvsL = (cvsL * 255 + (cvtargL << 5)) >> 8;
             cvsR = (cvsR * 255 + (cvtargR << 5)) >> 8;
 
@@ -150,18 +148,14 @@ public:
             int32_t fromBufferL = (fromBuffer2L * rL + fromBuffer1L * (128 - rL)) >> 7;
             int32_t fromBufferR = (fromBuffer2R * rR + fromBuffer1R * (128 - rR)) >> 7;
 
-            CVOut1(cvMix);
+            outL = fromBufferL;
+            outR = fromBufferR;
 
-            int32_t outL = fromBufferL;
-            int32_t outR = fromBufferR;
+            outCV = cvMix;
 
             int32_t buf_write = highpass_process(&hpf, 200, audioL);
 
             delaybuf[writeInd] = buf_write;
-            clip(outL);
-            clip(outR);
-            AudioOut1(outL);
-            AudioOut2(outR);
 
             writeInd++;
             if (writeInd >= bufSize)
@@ -174,23 +168,23 @@ public:
             // reset clock, stop recording, playback, loop at the end of the delay buffer
             qSample = quantSample(cvMix);
 
-            if ((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
+            cvBuf[writeInd] = cvMix;
+            delaybuf[writeInd] = audioL;
+
+            outL = audioL;
+            outR = audioL;
+
+            outCV = cvMix;
+
+            writeInd++;
+            if (writeInd >= bufSize)
+                writeInd = 0;
+
+            loopLength++;
+            if (loopLength > bufSize)
             {
-
-                LedOn(4, true);
-                pulseTimer1 = 200;
-
-                if (randPulse)
-                {
-                    PulseOut2(true);
-                    LedOn(5, true);
-                    pulseTimer2 = 200;
-
-                    CVOut2MIDINote(qSample);
-                };
-            };
-
-            cvMix = calcCVMix(noise);
+                loopLength = bufSize;
+            }
 
             break;
         }
@@ -209,22 +203,28 @@ public:
             phaseL += dphaseL >> 1;
             phaseR += dphaseR >> 1;
 
+            if (loopLength < 1)
+            {
+                loopLength = bufSize;
+            }
+
+
             if (phaseL < 0)
             {
-                phaseL += bufSize << 8;
+                phaseL += loopLength << 8;
             }
-            if (phaseL > (bufSize << 8))
+            if (phaseL > (loopLength << 8))
             {
-                phaseL -= bufSize << 8;
+                phaseL -= loopLength << 8;
             }
 
             if (phaseR < 0)
             {
-                phaseR += bufSize << 8;
+                phaseR += loopLength << 8;
             }
-            if (phaseR > (bufSize << 8))
+            if (phaseR > (loopLength << 8))
             {
-                phaseR -= bufSize << 8;
+                phaseR -= loopLength << 8;
             }
 
             int32_t rL = phaseL & 0xFF;
@@ -232,27 +232,17 @@ public:
             int32_t rR = phaseR & 0xFF;
             int32_t readIndR = phaseR >> 8;
 
-            int32_t valL = (delaybuf[readIndL] << 3) * (265 - rL) + (delaybuf[(readIndL + 1) % bufSize] << 3) * (rL);
-            int32_t valR = (delaybuf[readIndR] << 3) * (265 - rR) + (delaybuf[(readIndR + 1) % bufSize] << 3) * (rR);
+            outL = (delaybuf[readIndL] << 3) * (265 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL);
+            outR = (delaybuf[readIndR] << 3) * (265 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR);
 
-            valL >>= 12;
-            valR >>= 12;
+            if (loopLength > 0)
+            {
+                outCV = (cvBuf[readIndL] * (265 - rL) + cvBuf[(readIndL + 1) % loopLength] * rL) >> 8;
+            }
 
-            clip(valL);
-            clip(valR);
+            outL >>= 12;
+            outR >>= 12;
 
-            AudioOut1(valL);
-            AudioOut2(valR);
-
-            CVOut1(cvMix);
-
-            // int32_t outL = fromBufferL;
-            // int32_t outR = fromBufferR;
-
-            // clip(outL);
-            // clip(outR);
-            // AudioOut1(outL);
-            // AudioOut2(outR);
 
             // if (Connected(Input::Pulse2))
             // {
@@ -278,6 +268,12 @@ public:
             break;
         }
         };
+
+        clip(outL);
+        clip(outR);
+        AudioOut1(outL);
+        AudioOut2(outR);
+        CVOut1(outCV);
 
         if ((!Connected(Input::Pulse1) && clockPulse) || (Connected(Input::Pulse1) && PulseIn1RisingEdge()))
         {
@@ -336,7 +332,6 @@ private:
     int pulseTimer1 = 200;
     int pulseTimer2;
     bool clockPulse = false;
-    int loopRamp;
     uint32_t controlReadIndex = 0;
     uint32_t controlWriteIndex = 0;
     uint32_t startPos;
@@ -344,9 +339,11 @@ private:
     int lastLowPassMain = 0;
     int lastCVmix = 0;
     int incr;
-    int audioLoopLength;
-    int cvLoopLength;
+    int loopLength = 0;
     bool reset = false;
+    int32_t outL;
+    int32_t outR;
+    int32_t outCV;
 
     Switch lastSwitchVal;
     int x;
