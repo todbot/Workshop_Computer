@@ -29,8 +29,8 @@ public:
     {
         // constructor
         runMode = SwitchVal() == Switch::Middle ? PLAY : DELAY;
-        startPosL = 0;
-        startPosR = 0;
+        startPosL = KnobVal(Knob::X) * bufSize >> 4;
+        startPosR = KnobVal(Knob::Y) * bufSize >> 4;
 
         for (int i = 0; i < bufSize; i++)
         {
@@ -95,8 +95,9 @@ public:
         else if ((s == Switch::Middle) && (lastSwitchVal != Switch::Middle))
         {
             runMode = PLAY;
-            readIndL = startPosL;
-            readIndR = startPosR;
+            calculateStartPos();
+            phaseL = startPosL;
+            phaseR = startPosR;
         };
 
         cvMix = calcCVMix(noise);
@@ -197,7 +198,7 @@ public:
 
             int32_t k = KnobVal(Knob::Main) >> 1;
             int32_t dphaseL = k + AudioIn2();
-            int32_t dphaseR = (2047 - k) + AudioIn2();
+            int32_t dphaseR = k + AudioIn2();
             dphaseL -= 1024;
             dphaseR -= 1024;
 
@@ -208,6 +209,20 @@ public:
             {
                 loopLength = bufSize;
             }
+
+            calculateStartPos();
+        
+            checkZero = zeroCrossing(outL, lastSampleL) && zeroCrossing(outR, lastSampleR);
+
+            lastSampleL = fromBufferL;
+            lastSampleR = fromBufferR;
+
+            if (reset && ((Connected(Input::Audio1) && checkZero)))
+            {
+                reset = false;
+                phaseL = startPosL;
+                phaseR = startPosR;
+            };
 
             if (phaseL < 0)
             {
@@ -243,31 +258,6 @@ public:
             outL >>= 12;
             outR >>= 12;
 
-            if (Connected(Input::Pulse2))
-            {
-                startPosL = x * loopLength >> 8;
-                startPosR = y * loopLength >> 8;
-            }
-            else
-            {
-                startPosL = 0;
-                startPosR = 0;
-            };
-
-            checkZero = zeroCrossing(outL, lastSampleL) && zeroCrossing(outR, lastSampleR);
-
-            lastSampleL = fromBufferL;
-            lastSampleR = fromBufferR;
-
-            if (reset && ((Connected(Input::Audio1) && checkZero) ||
-                          (Connected(Input::Audio2) && checkZero)))
-            {
-                reset = false;
-                readIndL = startPosL;
-                readIndR = startPosR;
-                phaseL = 0;
-                phaseR = 0;
-            };
             break;
         }
         };
@@ -408,6 +398,28 @@ private:
     int32_t cabs(int32_t a)
     {
         return (a > 0) ? a : -a;
+    }
+
+    void calculateStartPos() 
+    {
+        if (Connected(Input::CV1) && Connected(Input::CV2))
+            {
+                startPosL =  (x * (cv1 + 2048) >> 12) * loopLength >> 4;
+                startPosR = (y * (cv2 + 2048) >> 12) * loopLength >> 4;
+            }
+            else if (Connected(Input::CV1))
+            {
+                startPosL = (x * (cv1 + 2048) >> 12) * loopLength >> 4;
+                startPosR = y * loopLength >> 4;
+            }
+            else if (Connected(Input::CV2))
+            {
+                startPosL = x * loopLength >> 4;
+                startPosR = (y * (cv2 + 2048) >> 12) * loopLength >> 4;
+            } else {
+                startPosL = x * loopLength >> 4;
+                startPosR = y * loopLength >> 4;
+            }
     }
 };
 
