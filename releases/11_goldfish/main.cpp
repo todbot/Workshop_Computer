@@ -29,7 +29,8 @@ public:
     {
         // constructor
         runMode = SwitchVal() == Switch::Middle ? PLAY : DELAY;
-        startPos = 0;
+        startPosL = 0;
+        startPosR = 0;
 
         for (int i = 0; i < bufSize; i++)
         {
@@ -94,8 +95,8 @@ public:
         else if ((s == Switch::Middle) && (lastSwitchVal != Switch::Middle))
         {
             runMode = PLAY;
-            readIndL = startPos;
-            readIndR = startPos;
+            readIndL = startPosL;
+            readIndR = startPosR;
         };
 
         cvMix = calcCVMix(noise);
@@ -208,7 +209,6 @@ public:
                 loopLength = bufSize;
             }
 
-
             if (phaseL < 0)
             {
                 phaseL += loopLength << 8;
@@ -243,28 +243,31 @@ public:
             outL >>= 12;
             outR >>= 12;
 
+            if (Connected(Input::Pulse2))
+            {
+                startPosL = x * loopLength >> 8;
+                startPosR = y * loopLength >> 8;
+            }
+            else
+            {
+                startPosL = 0;
+                startPosR = 0;
+            };
 
-            // if (Connected(Input::Pulse2))
-            // {
-            //     startPos = (cvMix + 2048) * (bufSize - 1) >> 12;
-            // }
-            // else
-            // {
-            //     startPos = 0;
-            // };
+            checkZero = zeroCrossing(outL, lastSampleL) && zeroCrossing(outR, lastSampleR);
 
-            // checkZero = zeroCrossing(fromBufferL, lastSampleL) || zeroCrossing(fromBufferR, lastSampleR);
+            lastSampleL = fromBufferL;
+            lastSampleR = fromBufferR;
 
-            // lastSampleL = fromBufferL;
-            // lastSampleR = fromBufferR;
-
-            // if (reset && ((Connected(Input::Audio1) && checkZero) ||
-            //               (Connected(Input::Audio2) && checkZero)))
-            // {
-            //     reset = false;
-            //     loopRamp = 0;
-            //     writeInd = startPos;
-            // };
+            if (reset && ((Connected(Input::Audio1) && checkZero) ||
+                          (Connected(Input::Audio2) && checkZero)))
+            {
+                reset = false;
+                readIndL = startPosL;
+                readIndR = startPosR;
+                phaseL = 0;
+                phaseR = 0;
+            };
             break;
         }
         };
@@ -334,7 +337,8 @@ private:
     bool clockPulse = false;
     uint32_t controlReadIndex = 0;
     uint32_t controlWriteIndex = 0;
-    uint32_t startPos;
+    uint32_t startPosL;
+    uint32_t startPosR;
     int lastLowPassX = 0;
     int lastLowPassMain = 0;
     int lastCVmix = 0;
