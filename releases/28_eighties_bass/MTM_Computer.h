@@ -82,6 +82,8 @@ public:
 
     pulse1_in.attach(PULSE_1_INPUT, INPUT_PULLUP);
     pulse2_in.attach(PULSE_2_INPUT, INPUT_PULLUP);
+    pulse1_in.interval(1);
+    pulse2_in.interval(1);
 
     for (int i = 0; i < channelCount; i++) {
       analog[i] = new ResponsiveAnalogRead(0, true, .1);  //  lower is smoother
@@ -154,6 +156,8 @@ public:
   int switchPos() {   // FIXME: do debouncing on this
       return analog[7]->getValue();
   }
+  bool pulse1InRose() { return pulse1_in.rose(); }
+  bool pulse2InRose() { return pulse2_in.rose(); }
 
   void setLED(int num, int val) {
     digitalWrite(leds[num], val);
@@ -219,9 +223,9 @@ public:
     SPI.transfer(DAC_dataL & 0xFF); // Send second byte
 
     digitalWrite(PIN_CS, HIGH); // Deselect the SPI device
-    SPI.endTransaction(); // End SPI transaction
 
-    SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0)); // Start SPI transaction
+    // keep these two transfers in the same transaction
+    
     digitalWrite(PIN_CS, LOW); // Select the SPI device
 
     SPI.transfer(DAC_dataR >> 8); // Send first byte

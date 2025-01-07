@@ -17,6 +17,10 @@
   - audio L & R out -- audio out
 */
 
+
+const bool quantized_CV = true;  // set false for unquantized CV (not that good until calibration added)
+const int NUM_VOICES = 5;
+
 #include "MozziConfigValues.h"  // for named option values
 #define MOZZI_AUDIO_MODE MOZZI_OUTPUT_EXTERNAL_TIMED
 #define MOZZI_AUDIO_CHANNELS MOZZI_STEREO
@@ -28,17 +32,21 @@
 #include <Mozzi.h>
 #include <Oscil.h>
 #include <tables/saw_analogue512_int8.h> // oscillator waveform
+#include <tables/square_analogue512_int8.h> // oscillator waveform
 #include <ResonantFilter.h>
+#include <ADSR.h>
 #include <mozzi_rand.h>  // for rand()
 #include <mozzi_midi.h>  // for mtof()
 
 #include "MTM_Computer.h"
 
-#define NUM_VOICES 5
+#include <tables/triangle_valve_2048_int8.h>
 
 Oscil<SAW_ANALOGUE512_NUM_CELLS, MOZZI_AUDIO_RATE> aOscs [NUM_VOICES]; // audio oscillators
 
 MultiResonantFilter filt;
+
+ADSR <CONTROL_RATE, CONTROL_RATE> envelope;
 
 int filt_mode = 0;   //  0 = lpf, 1 = bpf, 2 = hpf
 const int num_filt_modes = 3;
@@ -74,7 +82,9 @@ void setup() {
      aOscs[i].setTable(SAW_ANALOGUE512_DATA);
   }
 
-  comp.setLED(filt_mode*2, HIGH);
+  //comp.setLED(filt_mode*2, HIGH);
+  updateFilterMode(0);
+
 }
 
 void loop() {
@@ -86,17 +96,39 @@ float mapfloat(float x, float in_min, float in_max, float out_min, float out_max
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-void setNotes(int midi_note) { // could be float for finer control
+void setNotes(float midi_note) {
   float f = mtof(midi_note);
+
   for(int i=1; i<NUM_VOICES-1; i++) {
     aOscs[i].setFreq( f + (float)(i * detune * rand(100)/100.0) );
   }
   aOscs[NUM_VOICES-1].setFreq( (float)(f/2.0) ); //(float)i * detune * rand(100)/100.0 );
 }
 
+void updateFilterMode(uint8_t fmode) {
+  comp.setLED(1+filt_mode*2, LOW); // turn off previous LEDs
+  filt_mode = fmode % num_filt_modes; // go to next filter type
+  comp.setLED(1+filt_mode*2, HIGH);
+}
+
 // mozzi function, called MOZZI_CONTROL_RATE times per second
 void updateControl() {
   comp.update();
+
+  // if( comp.pulse1InRose() ) { 
+  //   Serial.println("PULSE1 ROSE");
+  //   osc_mode = (osc_mode+1) % num_oscs;
+  //   if(osc_mode == 0) {
+  //     for(int i=0; i<NUM_VOICES; i++) {
+  //       aOscs[i].setTable(SAW_ANALOGUE512_DATA);
+  //     }
+  //   }
+  //   else if(osc_mode == 1) { 
+  //     for(int i=0; i<NUM_VOICES; i++) {
+  //       aOscs[i].setTable(SQUARE_ANALOGUE512_DATA);
+  //     }
+  //   }
+  // }
 
   if( millis() - last_status_millis > 200) { 
     last_status_millis = millis();
@@ -106,19 +138,17 @@ void updateControl() {
       (comp.cv1In()/16), (comp.cv2In()/16), (comp.audio1In()/16), (comp.audio2In()/16) );
     Serial.printf("  detune: %.2f noise: %.2f\n", detune, noisey_amt );
 
-    // only do detene change occasionally
+    // only do detune change occasionally
     if( comp.audio1In() > 2000 and comp.audio1In() < 2100 ) { 
       detune = 1;
     } else { 
       detune = constrain(mapfloat(comp.audio1In(), CVlowPoint5V, CVhighPoint5V, 0.02, 10), 0.02, 10);
     }
-    // switch is filter mode. Check it only every 200 millis as cheap "debounce"
+    // switch is filter mode. Check it only every 200 msec as cheap "debounce"
     if( comp.switchPos() < 500 ) {   // switch pushed down
-      comp.setLED(1+filt_mode*2, LOW);
-      filt_mode = (filt_mode+1) % num_filt_modes; // go to next filter type
-      comp.setLED(1+filt_mode*2, HIGH);
+      updateFilterMode( filt_mode + 1 );
     }
-  }
+  } // end last_status_millis
 
   noisey_amt = abs(constrain(mapfloat(comp.audio2In(), CVlowPoint5V, CVhighPoint5V, -0.7, 0.7), -0.7, 0.7)); // don't let in too much noise
   signal_amt = 1-noisey_amt;
@@ -131,11 +161,15 @@ void updateControl() {
   cutoff_freq = constrain(cutoff_freq + cutoff_freq_cv, 0,255);
   filt.setCutoffFreqAndResonance(cutoff_freq, resonance);
 
-  float midi_note_knob = map(comp.knobX(), 0, 4096, -63, 64);
-  float midi_note_cv1 = map(comp.cv1In(), CVlowPoint5V, CVhighPoint5V, 0, 120); 
-  midi_note = constrain( midi_note_cv1 + midi_note_knob, 0, 127);
-
-  setNotes( (int)midi_note );
+  float midi_note_knob = mapfloat(comp.knobX(), 0, 4096, -31, 32);
+  float midi_note_cv1 = mapfloat(comp.cv1In(), CVlowPoint5V, CVhighPoint5V, 0, 120); 
+  midi_note = constrain( midi_note_cv1 + midi_note_knob, 0, 84); // keep it not screechy
+  
+  if( quantized_CV ) { 
+    setNotes( (int)midi_note ); // the (int) quantizes the note
+  } else { 
+    setNotes( midi_note );  // 
+  }
 
 }
 
