@@ -1,0 +1,85 @@
+
+
+int32_t __not_in_flash_func(highpass_process)(int32_t *out, int32_t b, int32_t in)
+{
+	*out += (((in - *out) * b) >> 16);
+	return in - *out;
+}
+
+class delay : virtual public ComputerCard
+{
+public:
+	static constexpr uint32_t bufSize = 48000;
+	int16_t delaybuf[bufSize];
+	unsigned writeInd, readInd, cvs;
+	int32_t ledtimer = 0;
+	int32_t hpf = 0;
+	delay()
+	{
+		for (int i = 0; i < bufSize; i++) delaybuf[i] = 0;
+		writeInd = 0;
+		readInd = 0;
+		cvs = 0;
+	}
+	void __not_in_flash_func(Sample)()
+	{
+		int32_t k = KnobVal(ComputerCard::Knob(Knob::X + I));
+		int32_t cv = CVIn(I) + k;
+		if (cv > 4095) cv = 4095;
+		if (cv < 0) cv = 0;
+
+		int cvtarg = cv * cv / 178;
+		cvs = (cvs * 255 + (cvtarg << 5)) >> 8;
+
+		int cvs1 = cvs >> 7;
+		int r = cvs & 0x7F;
+
+		readInd = (writeInd + (bufSize << 1) - (cvs1)-1) % bufSize;
+		int32_t fromBuffer1 = delaybuf[readInd];
+		int readInd2 = (writeInd + (bufSize << 1) - (cvs1)-2) % bufSize;
+		int32_t fromBuffer2 = delaybuf[readInd2];
+
+		int32_t fromBuffer = (fromBuffer2 * r + fromBuffer1 * (128 - r)) >> 7;
+		int32_t in = AudioIn(I);
+
+
+		int32_t k2;
+		if (I == 0)
+		{
+			k2 = KnobVal(ComputerCard::Knob(Knob::Main));
+		}
+		else
+		{
+			if (SwitchVal() == Switch::Up)
+				k2 = 800;
+			else if (SwitchVal() == Switch::Middle)
+				k2 = 2500;
+			else
+				k2 = 4095; // switch down = infinite loop
+		}
+
+		int32_t out = (((4095 - ((k2 * k2) >> 12)) * in) >> 12) + (((4095 - (((4095 - k2) * (4095 - k2)) >> 12)) * fromBuffer) >> 12);
+
+		int32_t buf_write = highpass_process(&hpf, 200, out);
+
+		delaybuf[writeInd] = buf_write;
+		clip(out);
+		AudioOut(I, out);
+
+		writeInd++;
+		if (writeInd >= bufSize) writeInd = 0;
+
+		ledtimer--;
+		if (ledtimer <= 0) ledtimer = cvs1;
+		LedOn(I + 4, ledtimer < 100);
+		LedBrightness(I, cabs(in << 1));
+		LedBrightness(I + 2, cabs(out << 1));
+
+		{ // Gate to trigger
+			static int gateToTrigCounter=0;
+			if (PulseInRisingEdge(I)) gateToTrigCounter = 100;
+			if (gateToTrigCounter) PulseOut(I, --gateToTrigCounter);
+		}
+
+	}
+};

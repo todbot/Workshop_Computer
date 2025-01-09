@@ -63,6 +63,14 @@ public:
     int internalClockRate;
     bool lastRisingEdge1 = false;
     bool lastRisingEdge2 = false;
+    int audioL1 = 0;
+    int audioL2 = 0;
+    int audioR1 = 0;
+    int audioR2 = 0;
+    int audioLf1 = 0;
+    int audioLf2 = 0;
+    int audioRf1 = 0;
+    int audioRf2 = 0;
 
     virtual void ProcessSample()
     {
@@ -100,6 +108,22 @@ public:
                 cv2 = CVIn2();               // -2048 to 2047
                 int16_t audioL = AudioIn1(); // -2048 to 2047
                 int16_t audioR = AudioIn2(); // -2048 to 2047
+
+                // 12kHz notch filter, to remove interference from mux lines (only left channel)
+
+                audioL <<= 2;
+
+                int32_t ooa0 = 16302, a2oa0 = 16221; // Q=100;
+                //	int32_t ooa0=15603, a2oa0=14823;//Q=10;
+                int32_t audioLf = (ooa0 * (audioL + audioL2) - a2oa0 * audioLf2) >> 14;
+                audioL2 = audioL1;
+                audioL1 = audioL;
+                audioLf2 = audioLf1;
+                audioLf1 = audioLf;
+
+                audioL >>= 2;
+                audioLf >>= 2;
+
 
                 int16_t lastSampleL = 0;
                 int16_t lastSampleR = 0;
@@ -178,17 +202,18 @@ public:
 
                     if (Connected(Input::Audio2))
                     {
-                        kL = audioR * lastLowPassMain >> 12;
-                        kR = audioR * (4095 - lastLowPassMain) >> 12;
+                        kL = (2048 - audioR) * lowPassMain >> 12;
+                        kR = (2048 - audioR) * lowPassMain >> 12;
                     }
                     else
                     {
-                        kL = 4095 - lastLowPassMain;
-                        kR = lastLowPassMain;
+                        kL = 4095 - lowPassMain;
+                        kR = lowPassMain;
                     }
 
                     int32_t cvL = kL;
                     int32_t cvR = kR;
+
                     if (cvL > 4095)
                         cvL = 4095;
                     if (cvL < 0)
@@ -199,8 +224,8 @@ public:
                     if (cvR < 0)
                         cvR = 0;
 
-                    int cvtargL = cvL * cvL / 100;
-                    int cvtargR = cvR * cvR / 100;
+                    int cvtargL = cvL * cvL / 178;
+                    int cvtargR = cvR * cvR / 178;
                     cvsL = (cvsL * 255 + (cvtargL << 5)) >> 8;
                     cvsR = (cvsR * 255 + (cvtargR << 5)) >> 8;
 
@@ -227,7 +252,7 @@ public:
 
                     outCV = cvMix;
 
-                    int32_t buf_write = highpass_process(&hpf, 200, audioL);
+                    int32_t buf_write = highpass_process(&hpf, 200, audioLf);
 
                     delaybuf[writeInd] = buf_write;
 
@@ -243,10 +268,10 @@ public:
                     qSample = quantSample(cvMix);
 
                     cvBuf[writeInd] = cvMix;
-                    delaybuf[writeInd] = audioL;
+                    delaybuf[writeInd] = audioLf;
 
-                    outL = audioL;
-                    outR = audioL;
+                    outL = audioLf;
+                    outR = audioLf;
 
                     outCV = cvMix;
 
@@ -346,7 +371,9 @@ public:
                     if (loopLength > 0)
                     {
                         outCV = (cvBuf[readIndL] * (265 - rL) + cvBuf[(readIndL + 1) % loopLength] * rL) >> 8;
-                        // outCV = ((4000 * lastCV) + (95 * outCV)) >> 12;
+                        // outCV = ((1000 * lastCV) + (3095 * outCV)) >> 12;
+                        // lastCV = outCV;
+
                         qSample = quantSample(outCV);
                     }
 
@@ -440,6 +467,7 @@ private:
     int32_t outR;
     int32_t outCV;
     int startupCounter;
+    int lastCV;
 
     Switch lastSwitchVal;
     int x;
