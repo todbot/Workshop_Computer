@@ -61,6 +61,8 @@ public:
     int divisor;
     int internalClockCounter = 0;
     int internalClockRate;
+    bool lastRisingEdge1 = false;
+    bool lastRisingEdge2 = false;
 
     virtual void ProcessSample()
     {
@@ -71,10 +73,20 @@ public:
         // Hainbach says half time is the best time (no really I'm just buying more delay time)
         if (startupCounter == 0)
         {
+
+            // pulse read can't happen at halftime
+            bool risingEdge1 = PulseIn1RisingEdge();
+            bool risingEdge2 = PulseIn2RisingEdge();
+
+            int16_t qSample;
+
             if (halftime)
             {
                 int16_t noise = rnd12() - 2048;
                 Switch s = SwitchVal();
+
+                bool pulseL = false;
+                bool pulseR = false;
 
                 x = KnobVal(Knob::X);
                 y = KnobVal(Knob::Y);
@@ -83,16 +95,11 @@ public:
                 lowPassMain = (lastLowPassMain * 4000 + (main) * 95) >> 12;
                 lastLowPassMain = lowPassMain;
 
-                bool pulseL = false;
-                bool pulseR = false;
-
                 // Read inputs
                 cv1 = CVIn1();               // -2048 to 2047
                 cv2 = CVIn2();               // -2048 to 2047
                 int16_t audioL = AudioIn1(); // -2048 to 2047
                 int16_t audioR = AudioIn2(); // -2048 to 2047
-
-                int16_t qSample;
 
                 int16_t lastSampleL = 0;
                 int16_t lastSampleR = 0;
@@ -100,7 +107,7 @@ public:
                 int16_t fromBufferL = 0;
                 int16_t fromBufferR = 0;
 
-                internalClockRate = cabs(x-2048) * 50 >> 12 + 1;
+                internalClockRate = cabs(x - 2048) * 50 >> 12 + 1;
                 divisor = (y * 16 >> 12) + 1;
 
                 // BUFFERS LOOPS/DELAYSSS
@@ -138,7 +145,7 @@ public:
 
                 cvMix = calcCVMix(noise);
 
-                internalClockCounter+=internalClockRate;
+                internalClockCounter += internalClockRate;
 
                 if (internalClockCounter >= bufSize >> 2)
                 {
@@ -155,16 +162,6 @@ public:
                     }
                 }
 
-                if (PulseIn1RisingEdge())
-                {
-                    pulseL = true;
-                    pulseR = clockDivider.Step(true);
-                    if (pulseR)
-                    {
-                        clockDivider.SetResetPhase(divisor);
-                    }
-                }
-
                 lastSwitchVal = s;
 
                 switch (runMode)
@@ -176,10 +173,22 @@ public:
                     qSample = quantSample(cvMix);
 
                     // Delay code from Chris's amazing Utility Pair modfified slightly to remove internal feedback and add stereo
-                    int32_t kL = 4095 - lastLowPassMain;
-                    int32_t kR = lastLowPassMain;
-                    int32_t cvL = kL + AudioIn2();
-                    int32_t cvR = kR + AudioIn2();
+
+                    int32_t kL, kR;
+
+                    if (Connected(Input::Audio2))
+                    {
+                        kL = audioR * lastLowPassMain >> 12;
+                        kR = audioR * (4095 - lastLowPassMain) >> 12;
+                    }
+                    else
+                    {
+                        kL = 4095 - lastLowPassMain;
+                        kR = lastLowPassMain;
+                    }
+
+                    int32_t cvL = kL;
+                    int32_t cvR = kR;
                     if (cvL > 4095)
                         cvL = 4095;
                     if (cvL < 0)
@@ -259,8 +268,20 @@ public:
                 {
                     // play the loop, ignore the input
                     int32_t k = lowPassMain >> 1;
-                    int32_t dphaseL = k + AudioIn2();
-                    int32_t dphaseR = k + AudioIn2();
+                    int32_t dphaseL;
+                    int32_t dphaseR;
+
+                    if (Connected(Input::Audio2))
+                    {
+                        dphaseL = k + (audioR * (2048 - k) >> 11);
+                        dphaseR = k + (audioR * (2048 - k) >> 11);
+                    }
+                    else
+                    {
+                        dphaseL = k;
+                        dphaseR = k;
+                    }
+
                     dphaseL -= 1024;
                     dphaseR -= 1024;
 
@@ -279,39 +300,30 @@ public:
                     lastSampleL = fromBufferL;
                     lastSampleR = fromBufferR;
 
-                    if (reset && (checkZero || !Connected(Input::Audio1)))
+                    if (reset && ((checkZero && Connected(Input::Audio1)) || !Connected(Input::Audio1)))
                     {
                         reset = false;
                         phaseL = startPosL;
                         phaseR = startPosR;
-                        if (!Connected(Input::Pulse1))
-                        {
-                            pulseL = true;
-                            pulseR = true;
-                            clockDivider.SetResetPhase(divisor);
-                            internalClockCounter = 0;
-                        }
+                        pulseL = true;
+                        pulseR = true;
+                        clockDivider.SetResetPhase(divisor);
+                        internalClockCounter = 0;
                     };
 
                     if (phaseL < 0)
                     {
                         phaseL += loopLength << 8;
-                        if (!Connected(Input::Pulse1))
-                        {
-                            pulseL = true;
-                            clockDivider.SetResetPhase(divisor);
-                            pulseR = clockDivider.Step(true);
-                        }
+                        clockDivider.SetResetPhase(divisor);
+                        pulseL = true;
+                        pulseR = clockDivider.Step(true);
                     }
                     if (phaseL > (loopLength << 8))
                     {
                         phaseL -= loopLength << 8;
-                        if (!Connected(Input::Pulse1))
-                        {
-                            pulseL = true;
-                            clockDivider.SetResetPhase(divisor);
-                            pulseR = clockDivider.Step(true);
-                        }
+                        pulseL = true;
+                        clockDivider.SetResetPhase(divisor);
+                        pulseR = clockDivider.Step(true);
                     }
 
                     if (phaseR < 0)
@@ -334,7 +346,7 @@ public:
                     if (loopLength > 0)
                     {
                         outCV = (cvBuf[readIndL] * (265 - rL) + cvBuf[(readIndL + 1) % loopLength] * rL) >> 8;
-                       // outCV = ((4000 * lastCV) + (95 * outCV)) >> 12;
+                        // outCV = ((4000 * lastCV) + (95 * outCV)) >> 12;
                         qSample = quantSample(outCV);
                     }
 
@@ -351,14 +363,22 @@ public:
                 AudioOut2(outR);
                 CVOut1(outCV);
 
-                if (PulseIn2RisingEdge())
+                LedBrightness(0, cabs(outL));
+                LedBrightness(1, cabs(outR));
+
+                if (risingEdge1 || lastRisingEdge1)
+                {
+                    pulseL = true;
+                    pulseR = clockDivider.Step(true);
+                    if (pulseR)
+                    {
+                        clockDivider.SetResetPhase(divisor);
+                    }
+                }
+
+                if (risingEdge2 || lastRisingEdge2)
                 {
                     reset = true;
-                };
-
-                if (PulseIn1RisingEdge() || (!Connected(Input::Pulse1) && pulseR))
-                {
-                    CVOut2MIDINote(qSample);
                 };
 
                 if (pulseL)
@@ -367,6 +387,10 @@ public:
                     pulseTimer1 = 200;
                     PulseOut1(true);
                     LedOn(4);
+                    if (!Connected(Input::Pulse1))
+                    {
+                        CVOut2MIDINote(qSample);
+                    }
                 };
 
                 if (pulseR)
@@ -376,9 +400,6 @@ public:
                     PulseOut2(true);
                     LedOn(5);
                 };
-
-                LedBrightness(0, cabs(outL));
-                LedBrightness(1, cabs(outR));
 
                 // If a pulse1 is ongoing, keep counting until it ends
                 if (pulseTimer1)
@@ -402,24 +423,20 @@ public:
                     }
                 };
             }
+
+            lastRisingEdge1 = risingEdge1;
+            lastRisingEdge2 = risingEdge2;
         }
     };
 
 private:
-    int clockRate;
-    int clock;
     int pulseTimer1 = 200;
     int pulseTimer2;
     bool clockPulse = false;
-    uint32_t controlReadIndex = 0;
-    uint32_t controlWriteIndex = 0;
     uint32_t startPosL;
     uint32_t startPosR;
     int lowPassMain = 0;
-    int lastLowPassX = 0;
     int lastLowPassMain = 0;
-    int lastCV = 0;
-    int incr;
     int loopLength = 0;
     bool reset = false;
     int32_t outL;
