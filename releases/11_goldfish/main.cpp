@@ -366,6 +366,11 @@ public:
                 LedBrightness(0, cabs(outL));
                 LedBrightness(1, cabs(outR));
 
+                if (risingEdge2 || lastRisingEdge2)
+                {
+                    reset = true;
+                };
+
                 if (risingEdge1 || lastRisingEdge1)
                 {
                     pulseL = true;
@@ -376,21 +381,13 @@ public:
                     }
                 }
 
-                if (risingEdge2 || lastRisingEdge2)
-                {
-                    reset = true;
-                };
-
                 if (pulseL)
                 {
                     pulseL = false;
                     pulseTimer1 = 200;
                     PulseOut1(true);
                     LedOn(4);
-                    if (!Connected(Input::Pulse1))
-                    {
-                        CVOut2MIDINote(qSample);
-                    }
+                    CVOut2MIDINote(qSample);
                 };
 
                 if (pulseR)
