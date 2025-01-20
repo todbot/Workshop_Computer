@@ -108,8 +108,6 @@ Disclaimer: the instructions below appear to work but are likely far from optima
 
 ## [Using the Arduino IDE](#arduino-ide)
 
-Thanks to divmod for figuring this out and writing this section
-
 ### Installation
 
 - Install Arduino IDE: (https://www.arduino.cc/en/software)[https://www.arduino.cc/en/software]
@@ -137,15 +135,12 @@ void loop() {
 }
 ```
 - Note: The `Run()` method is blocking (never returns), and therefore takes over control from the Arduino `loop()` function. Code to be executed every sample goes in the ComputerCard `ProcessSample` function.
-- Set 'USB Stack' to 'No USB'
-- Sketch -> Export Compiled Binary
-- Your sketch directory should contain a build/rp2040.rp2040.rpipico directory (or similar) with a .uf2 file.
-  Copy this file to your Computer.
-- Done.
 
-### Limitations
+### Build
+- Note: Make sure Tools -> USB Stack is set to "No USB", as this interferes with the normalization probing.
+- Sketch -> Upload to build and upload the sketch. 
+- You can also create a .uf2 file with Sketch -> Export Compiled Binary. Your sketch directory should contain a build/rp2040.rp2040.rpipico directory (or similar) with a .uf2 file. Copy this file to your Computer.
 
-It appears that the normalisation probe does not function correctly when ComputerCard is compiled with the Arduino environment.
 
 # [Programming for ComputerCard](#programming)
 

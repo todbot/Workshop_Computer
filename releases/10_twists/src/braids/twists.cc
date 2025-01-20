@@ -25,9 +25,9 @@
 // Ported to Music Thing Computer by Tom Waters using code from Chris Johnson's Reverb card
 
 #include <algorithm>
+#include <queue>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
-
 #include "hardware/adc.h"
 #include "hardware/flash.h"
 
@@ -35,6 +35,7 @@
 
 #include "braids/drivers/switch.h"
 #include "braids/drivers/dac.h"
+#include "braids/drivers/cv_out.h"
 #include "braids/envelope.h"
 #include "braids/macro_oscillator.h"
 #include "braids/quantizer.h"
@@ -44,8 +45,11 @@
 #include "braids/usb_worker.h"
 #include "braids/quantizer_scales.h"
 #include "braids/resources.h"
+#include "braids/midi_message.h"
 
 #define PIN_PULSE1_IN       2
+#define PIN_PULSE1_OUT      8
+#define PIN_PULSE2_OUT      9
 #define PIN_MUX_LOGIC_A     24
 #define PIN_MUX_LOGIC_B     25
 #define PIN_MUX_OUT_X       28
@@ -66,6 +70,7 @@ SignatureWaveshaper ws;
 VcoJitterSource jitter_source;
 Ui ui;
 UsbWorker usbWorker;
+CvOut cvOut;
 
 uint8_t current_scale = 0xff;
 size_t current_sample;
@@ -78,11 +83,19 @@ bool trigger_detected_flag;
 volatile bool trigger_flag;
 uint16_t trigger_delay;
 
+queue<MIDIMessage> midi_messages;
+volatile bool midi_active = false;
+volatile bool midi_note_on = false;
+volatile bool midi_note_off = false;
+volatile uint8_t midi_notes_on = 0;
+volatile uint8_t midi_note = 0;
+
 volatile uint8_t mxPos = 0; // external multiplexer value
 volatile int32_t knobssm[4] = {0,0,0,0};
 volatile int32_t cvsm[2] = {0,0};
 volatile uint16_t knobs[4] = {0,0,0,0}; // 0-4095
 volatile uint16_t cv[2] = {0,0}; // -2047 - 2048
+volatile uint16_t audio_in[2] = {2048, 2048};
 
 void timer_callback() {
   // Now, get ADC data from this cycle
@@ -102,9 +115,9 @@ void timer_callback() {
   }
 
 	// (untested) best attempt at correction of DNL errors in ADC
-	// uint16_t adc512 = adc + 512;
-	// if (!(adc512 % 0x01FF)) adc += 4;
-	// adc -= (adc512>>10) << 3;
+	uint16_t adc512 = adc + 512;
+	if (!(adc512 % 0x01FF)) adc += 4;
+	adc -= (adc512>>10) << 3;
 
   switch(adc_get_selected_input()) 
 	{
@@ -113,6 +126,12 @@ void timer_callback() {
 		  cvsm[mxPos % 2] = (7 * (cvsm[mxPos % 2]) + 16 * adc) >> 3;
       cv[mxPos % 2] = cvsm[mxPos % 2] >> 4;
     break;
+    case 1:
+      audio_in[0] = adc;
+      break;
+    case 2:
+      audio_in[1] = adc;
+      break;
     case 3:
       // Each knob sampled at 48kHz/4 = 12kHz
 		  // Then IIR filter with time constant ~128 samples, so around 100Hz
@@ -149,11 +168,62 @@ uint32_t GetUniqueId() {
   return (unique_id[4] << 24) | (unique_id[5] << 16) | (unique_id[6] << 8) | unique_id[7];
 }
 
+// midi on then off? or off and not on
+void USBMIDICallback(MIDIMessage message) {
+  uint8_t engine_channel = settings.GetValue(SETTING_MIDICHANNEL_ENGINE);
+  uint8_t out1_channel = settings.GetValue(SETTING_MIDICHANNEL_OUT1);
+  uint8_t out2_channel = settings.GetValue(SETTING_MIDICHANNEL_OUT2);
+  //float note_volts = 1.0;// ((int)message.note - 60) / 12.0;
+  float note_volts = (static_cast<float>(message.note) - 60.0) / 12.0;
+
+  switch(message.command) {
+    case MIDIMessage::NoteOn:
+      if(message.velocity > 0) {
+        if(engine_channel == 0 || message.channel == engine_channel) {
+          midi_messages.push(message);
+        }
+
+        if(out1_channel == 0 || message.channel == out1_channel) {
+          cvOut.SetFloat(0, note_volts);
+          gpio_put(PIN_PULSE1_OUT, false);
+        }
+        if(out2_channel == 0 || message.channel == out2_channel) {
+          cvOut.SetFloat(1, note_volts);
+          gpio_put(PIN_PULSE2_OUT, false);
+        }
+      }
+      break;
+    case MIDIMessage::NoteOff:
+      if(engine_channel == 0 || message.channel == engine_channel) {
+        midi_messages.push(message);
+      }
+      if(out1_channel == 0 || message.channel == out1_channel) {
+        gpio_put(PIN_PULSE1_OUT, true);
+      }
+      if(out2_channel == 0 || message.channel == out2_channel) {
+        gpio_put(PIN_PULSE2_OUT, true);
+      }        
+      break;
+  }
+}
+
 void RunUSBWorker() {
   usbWorker.Run();
 }
 
 void Init() {
+  // Pulse
+  gpio_init(PIN_PULSE1_IN);
+  gpio_set_dir(PIN_PULSE1_IN, GPIO_IN);
+  gpio_pull_up(PIN_PULSE1_IN);
+
+  gpio_init(PIN_PULSE1_OUT);
+  gpio_set_dir(PIN_PULSE1_OUT, GPIO_OUT);
+  gpio_put(PIN_PULSE1_OUT, true);
+  gpio_init(PIN_PULSE2_OUT);
+  gpio_set_dir(PIN_PULSE2_OUT, GPIO_OUT);
+  gpio_put(PIN_PULSE2_OUT, true);
+
   multicore_lockout_victim_init();
   settings.Init();
   ui.Init();
@@ -173,7 +243,7 @@ void Init() {
   ws.Init(GetUniqueId());
   jitter_source.Init();
 
-  usbWorker.Init();
+  usbWorker.Init(&USBMIDICallback);
   multicore_launch_core1(RunUSBWorker);
 
   gpio_init(PIN_MUX_LOGIC_A);
@@ -193,9 +263,7 @@ void Init() {
 	irq_set_enabled(ADC_IRQ_FIFO, true);
 	adc_run(true);
 
-  gpio_init(PIN_PULSE1_IN);
-  gpio_set_dir(PIN_PULSE1_IN, GPIO_IN);
-  gpio_pull_up(PIN_PULSE1_IN);
+  cvOut.Init();
 }
 
 const uint16_t bit_reduction_masks[] = {
@@ -209,6 +277,12 @@ const uint16_t bit_reduction_masks[] = {
 
 const uint16_t decimation_factors[] = { 24, 12, 6, 4, 3, 2, 1 };
 
+int16_t clamp(int16_t val, int16_t min, int16_t max) {
+  if(val > max) return max;
+  if(val < min) return min;
+  return val;
+}
+
 void RenderBlock() {
   static int16_t previous_pitch = 0;
   static uint16_t gain_lp;
@@ -216,18 +290,37 @@ void RenderBlock() {
   envelope.Update(
       settings.GetValue(SETTING_AD_ATTACK) * 8,
       settings.GetValue(SETTING_AD_DECAY) * 8);
-  uint32_t ad_value = envelope.Render();
+  uint32_t ad_value = envelope.Render(midi_active);
   
   osc.set_shape(settings.shape());
 
-  int16_t timbre = knobs[1] << 3;
-  int16_t color = knobs[2] << 3;
+  int16_t timbre = clamp(knobs[1] + (audio_in[0] - 2048), 0, 4095);;
+  timbre = timbre << 3;
+  int16_t color = clamp(knobs[2] + (audio_in[1] - 2048), 0, 4095);
+  color = color << 3;
   osc.set_parameters(timbre, color);
+
+  if(!midi_messages.empty()) {
+    MIDIMessage midi_message = midi_messages.front();
+    midi_messages.pop();
+
+    if(midi_message.command == MIDIMessage::NoteOn) {
+      midi_note_on = true;
+      midi_active = true;
+      midi_note = midi_message.note;
+      midi_notes_on++;      
+    } else if(midi_message.command == MIDIMessage::NoteOff) {
+      midi_notes_on--;
+      if(midi_notes_on == 0) {
+          midi_note_off = true;
+      }
+    }
+  }
   
   // pitch is (pitchV * 12.0 + 60) * 128
 
   // CV in = 0 - 4095 =  +6v -6v
-  // cv_in_lookup is a lookup of Computer cv in to the values braids expects
+  // cv_in_lookup is a lookup of Computer cv to the values braids expects
   // x = (12v * 12st * 128)
   // cv_pitch = ((4095 - cv[0]) * x) - (x / 2)
   // an alternative close approximation would be (((4095 - cv[0]) / 2) * 9) - 9216
@@ -236,7 +329,21 @@ void RenderBlock() {
   // CV Pot = 0 - 4095 = -4v +4v
   int32_t pot_pitch = (knobs[0] * 3) - 6144;
 
-  int32_t pitch = cv_pitch + pot_pitch + 7680;
+  // if we're using midi, react to the latest message
+  int32_t pitch = cv_pitch + 7680;
+  if(midi_active) {
+    pitch += ((midi_note - 60) * 128);
+    if(pot_pitch < -1000) {
+      pitch += pot_pitch + 1000;
+    } else if(pot_pitch > 1000) {
+      pitch += pot_pitch - 1000;
+    }
+  } 
+  else {
+    pitch += pot_pitch;
+  }
+
+  //pitch = settings.adc_to_pitch(pitch);
 
   // Check if the pitch has changed to cause an auto-retrigger
   int32_t pitch_delta = pitch - previous_pitch;
@@ -259,10 +366,15 @@ void RenderBlock() {
   }
   osc.set_pitch(pitch + settings.pitch_transposition());
 
-  if (trigger_flag) {
+  if (trigger_flag || midi_note_on) {
     osc.Strike();
     envelope.Trigger(ENV_SEGMENT_ATTACK);
     trigger_flag = false;
+    midi_note_on = false;
+  }
+  else if(midi_note_off) {
+    midi_note_off = false;
+    envelope.Trigger(ENV_SEGMENT_DECAY);
   }
   
   uint8_t* sync_buffer = sync_samples[render_block];
@@ -293,9 +405,8 @@ void RenderBlock() {
     gain_lp += (gain - gain_lp) >> 4;
     int16_t warped = ws.Transform(sample);
     render_buffer[i] = Mix(sample, warped, signature);
-
-     render_buffer[i] = (-render_buffer[i] + 32768) >> 5;
-   }
+    render_buffer[i] = (-render_buffer[i] + 32768) >> 5;
+  }
 
   render_block = (render_block + 1) % kNumBlocks;
 }

@@ -1,3 +1,17 @@
+# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
+if(WIN32)
+    set(USERHOME $ENV{USERPROFILE})
+else()
+    set(USERHOME $ENV{HOME})
+endif()
+set(sdkVersion 2.1.0)
+set(toolchainVersion 13_3_Rel1)
+set(picotoolVersion 2.1.0)
+set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
+if (EXISTS ${picoVscode})
+    include(${picoVscode})
+endif()
+# ====================================================================================
 # Set minimum required version of CMake
 cmake_minimum_required(VERSION 3.12)
 
@@ -29,6 +43,7 @@ add_executable(${PROJECT_NAME}
     braids/drivers/dac.cc
     braids/drivers/display.cc
     braids/drivers/switch.cc
+    braids/drivers/cv_out.cc
     stmlib/utils/random.cc
 )
 
@@ -46,6 +61,8 @@ target_link_libraries(${PROJECT_NAME}
     pico_rand
     pico_multicore
     hardware_adc
+    hardware_dma
+    hardware_i2c
     hardware_pwm
     hardware_spi
     hardware_flash
