@@ -8,6 +8,7 @@
 | 08_bytebeat | Generates and mangles bytebeats | 0.1 | C++/Arduino-Pico | Matt Kuebrich | Functional but WIP |
 | 10_twists | A port of Mutable Instruments Braids with a web editor | 0.1 | C (RPi Pico SDK) | Random Works | Functional but WIP |
 | 20_reverb | Reverb effect, plus pulse/CV generator configurable using web interface. | 1.1 | C (RPi Pico SDK) | Chris Johnson | Released |
+| 23_SlowMod | Chaotic quad-LFO with VCAs | 0.1 | C++ (RPi Pico SDK) compat. w/ cmake and Arduino IDE. | divmod/@olt | Released |
 | 28_eighties_bass | Bass-oriented complete monosynth voice consisting of five detuned saw wave oscillators with mixable white noise and adjustable resonant filter. | 0.1 | arduino-pico core and Mozzi 2 library | @todbot / Tod Kurt | Functional but WIP |
 | 30_cirpy_wavetable | Wavetable oscillator that using wavetables from Plaits, Braids, and Microwave, | 0.1 | Circuit Python | @todbot / Tod Kurt | Functional but WIP |
 | 77_Placeholder | Reserved for secret project | 0.0 | None | None | None |
