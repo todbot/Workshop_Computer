@@ -71,18 +71,30 @@ class Envelope {
     b_ = target_[segment];
     segment_ = segment;
     phase_ = 0;
+    hold_ = false;
   }
 
-  inline uint16_t Render() {
-    uint32_t increment = increment_[segment_];
-    phase_ += increment;
-    if (phase_ < increment) {
-      value_ = Mix(a_, b_, 65535);
-      Trigger(static_cast<EnvelopeSegment>(segment_ + 1));
+  inline uint16_t Render(bool current_segment_only) {
+    if(!hold_) {
+      uint32_t increment = increment_[segment_];
+      phase_ += increment;
+      // reached end?
+      if (phase_ < increment) {
+        value_ = Mix(a_, b_, 65535);
+
+        // if this is the attach segment and we want to hold it at the end
+        if(current_segment_only && segment_ == ENV_SEGMENT_ATTACK) {
+          hold_ = true;
+        } else {
+          Trigger(static_cast<EnvelopeSegment>(segment_ + 1));
+        }
+      }
+
+      if (!hold_ && increment_[segment_]) {
+        value_ = Mix(a_, b_, Interpolate824(lut_env_expo, phase_));
+      }
     }
-    if (increment_[segment_]) {
-      value_ = Mix(a_, b_, Interpolate824(lut_env_expo, phase_));
-    }
+    
     return value_;
   }
   
@@ -103,6 +115,8 @@ class Envelope {
   uint16_t b_;
   uint16_t value_;
   uint32_t phase_;
+
+  bool hold_;
 
   DISALLOW_COPY_AND_ASSIGN(Envelope);
 };
