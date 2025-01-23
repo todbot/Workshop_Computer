@@ -130,7 +130,7 @@ public:
                 int16_t fromBufferL = 0;
                 int16_t fromBufferR = 0;
 
-                internalClockRate = cabs(x - 2048) * 50 >> 12 + 1;
+                internalClockRate = (x * x / 178 >> 12) + 1;
                 divisor = (y * 16 >> 12) + 1;
 
                 // BUFFERS LOOPS/DELAYSSS
@@ -210,8 +210,8 @@ public:
                         kR = lowPassMain;
                     }
 
-                    int32_t cvL = kL;
-                    int32_t cvR = kR;
+                    int64_t cvL = kL;
+                    int64_t cvR = kR;
 
                     if (cvL > 4095)
                         cvL = 4095;
@@ -223,16 +223,16 @@ public:
                     if (cvR < 0)
                         cvR = 0;
 
-                    int cvtargL = cvL * cvL / 178;
-                    int cvtargR = cvR * cvR / 178;
-                    cvsL = (cvsL * 255 + (cvtargL << 5)) >> 8;
-                    cvsR = (cvsR * 255 + (cvtargR << 5)) >> 8;
+                    int64_t cvtargL = cvL * cvL / 50;
+                    int64_t cvtargR = cvR * cvR / 50;
+                    cvsL = (cvsL * 255 + (cvtargL << 4)) >> 8;
+                    cvsR = (cvsR * 255 + (cvtargR << 4)) >> 8;
 
-                    int cvs1L = cvsL >> 7;
-                    int cvs1R = cvsR >> 7;
+                    int64_t cvs1L = cvsL >> 7;
+                    int64_t cvs1R = cvsR >> 7;
 
-                    int rL = cvsL & 0x7F;
-                    int rR = cvsR & 0x7F;
+                    int64_t rL = cvsL & 0x7F;
+                    int64_t rR = cvsR & 0x7F;
 
                     readIndL = (writeInd + (bufSize << 1) - (cvs1L)-1) % bufSize;
                     readIndR = (writeInd + (bufSize << 1) - (cvs1R)-1) % bufSize;
