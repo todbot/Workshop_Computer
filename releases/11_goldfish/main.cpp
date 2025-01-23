@@ -298,8 +298,8 @@ public:
 
                     if (Connected(Input::Audio2))
                     {
-                        dphaseL = k + (audioR * (2048 - k) >> 11);
-                        dphaseR = k + (audioR * (2048 - k) >> 11);
+                        dphaseL = k + (audioR * (1024 - k) >> 11);
+                        dphaseR = k + ( -1 * audioR * (1024 - k) >> 11);
                     }
                     else
                     {
