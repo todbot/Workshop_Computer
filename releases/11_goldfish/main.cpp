@@ -124,7 +124,6 @@ public:
                 audioL >>= 2;
                 audioLf >>= 2;
 
-
                 int16_t lastSampleL = 0;
                 int16_t lastSampleR = 0;
 
@@ -299,7 +298,7 @@ public:
                     if (Connected(Input::Audio2))
                     {
                         dphaseL = k + (audioR * (1024 - k) >> 11);
-                        dphaseR = k + ( -1 * audioR * (1024 - k) >> 11);
+                        dphaseR = k + (-1 * audioR * (1024 - k) >> 11);
                     }
                     else
                     {
@@ -490,28 +489,47 @@ private:
         int16_t thing1 = 0;
         int16_t thing2 = 0;
 
+        bool noiseLed = false;
+
         if (Connected(Input::CV1) && Connected(Input::CV2))
         {
-            thing1 = cv1 * (x - 2048) >> 11;
-            thing2 = cv2 * (y - 2048) >> 11;
+            thing1 = cv1 * x >> 12;
+            thing2 = cv2 * y >> 12;
         }
         else if (Connected(Input::CV1))
         {
-            thing1 = cv1 * (x - 2048) >> 11;
-            thing2 = noise * y >> 12;
+            thing1 = cv1 * x >> 12;
+            thing2 = y >> 1;
         }
         else if (Connected(Input::CV2))
         {
-            thing1 = x - 2048;
-            thing2 = cv2 * (y - 2048) >> 11;
+            thing1 = x * noise >> 12;
+            thing2 = cv2 * y >> 12;
+            noiseLed = true;
         }
         else
         {
-            thing1 = x - 2048;
-            thing2 = y * noise >> 12;
+            thing1 = x * noise >> 12;
+            thing2 = y >> 1;
+            noiseLed = true;
         };
 
-        LedBrightness(2, cabs(thing1));
+        if (noiseLed)
+        {
+            if (noise > 1300)
+            {
+                LedBrightness(2, x);
+            }
+            else
+            {
+                LedOff(2);
+            }
+        }
+        else
+        {
+            LedBrightness(2, cabs(thing1));
+        }
+
         LedBrightness(3, cabs(thing2));
 
         // simple crossfade

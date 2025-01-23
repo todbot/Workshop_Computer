@@ -1,3 +1,7 @@
 
-- attenuvert phase mod with main.
+- swap noise and 6V in.
+- x, y as gain instead of attenuvert.
+- x clock speed back to normal
+- remove loop end click
+- maintain phase but remove clicks on both channels
 
