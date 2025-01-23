@@ -202,8 +202,8 @@ public:
 
                     if (Connected(Input::Audio2))
                     {
-                        kL = (2048 - audioR) * lowPassMain >> 12;
-                        kR = (2048 - audioR) * lowPassMain >> 12;
+                        kL = audioR * (lowPassMain - 2048) >> 11;
+                        kR = audioR * (2048 - lowPassMain) >> 11;
                     }
                     else
                     {
