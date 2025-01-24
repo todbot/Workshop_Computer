@@ -581,18 +581,18 @@ private:
     {
         if (Connected(Input::CV1) && Connected(Input::CV2))
         {
-            startPosL = (x * (cv1 + 2048) >> 12) * loopLength >> 4;
-            startPosR = (y * (cv2 + 2048) >> 12) * loopLength >> 4;
+            startPosL = (x * cv1 >> 12) * loopLength >> 4;
+            startPosR = (y * cv2 >> 12) * loopLength >> 4;
         }
         else if (Connected(Input::CV1))
         {
-            startPosL = (x * (cv1 + 2048) >> 12) * loopLength >> 4;
+            startPosL = (x * cv1 >> 12) * loopLength >> 4;
             startPosR = y * loopLength >> 4;
         }
         else if (Connected(Input::CV2))
         {
             startPosL = x * loopLength >> 4;
-            startPosR = (y * (cv2 + 2048) >> 12) * loopLength >> 4;
+            startPosR = (y * cv2 >> 12) * loopLength >> 4;
         }
         else
         {
