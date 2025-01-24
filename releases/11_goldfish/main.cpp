@@ -56,7 +56,6 @@ public:
     int phaseL = 0;
     int phaseR = 0;
     bool halftime;
-    bool bufferFull = false;
     Divider clockDivider;
     int divisor;
     int internalClockCounter = 0;
@@ -153,9 +152,8 @@ public:
                     pulseL = true;
                     pulseR = true;
                 }
-                else if (((s == Switch::Middle) && (lastSwitchVal != Switch::Middle)) || (runMode == RECORD && bufferFull))
+                else if ((s == Switch::Middle) && (lastSwitchVal != Switch::Middle))
                 {
-                    bufferFull = false;
                     runMode = PLAY;
                     calculateStartPos();
                     phaseL = startPosL;
@@ -276,9 +274,7 @@ public:
 
                     writeInd++;
                     if (writeInd >= bufSize)
-                    {
-                        bufferFull = true;
-                    }
+                        writeInd = 0;
 
                     loopLength++;
                     if (loopLength > bufSize)
@@ -498,7 +494,7 @@ private:
     int startupCounter;
     int lastCV;
 
-    Switch lastSwitchVal;
+    Switch lastSwitchVal = Switch::Down;
     int x;
     int y;
     int main;
