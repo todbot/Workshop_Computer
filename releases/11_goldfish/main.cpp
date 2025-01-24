@@ -364,15 +364,45 @@ public:
                     int32_t rR = phaseR & 0xFF;
                     int32_t readIndR = phaseR >> 8;
 
-                    outL = (delaybuf[readIndL] << 3) * (265 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL);
-                    outR = (delaybuf[readIndR] << 3) * (265 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR);
+                    int32_t fadeLength = loopLength; // Adjust this value as needed for the fade length
+
+                    // Apply fade-out at the end of the loop
+                    if (phaseL >= (loopLength << 8) - fadeLength)
+                    {
+                        int32_t fadeOutFactor = ((loopLength << 8) - phaseL) * 256 / fadeLength;
+                        outL = ((delaybuf[readIndL] << 3) * (265 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL)) * fadeOutFactor >> 8;
+                    }
+                    else
+                    {
+                        outL = (delaybuf[readIndL] << 3) * (265 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL);
+                    }
+
+                    // Apply fade-in at the beginning of the loop
+                    if (phaseL < fadeLength)
+                    {
+                        int32_t fadeInFactor = phaseL * 256 / fadeLength;
+                        outL = outL * fadeInFactor >> 8;
+                    }
+
+                    if (phaseR >= (loopLength << 8) - fadeLength)
+                    {
+                        int32_t fadeOutFactor = ((loopLength << 8) - phaseR) * 256 / fadeLength;
+                        outR = ((delaybuf[readIndR] << 3) * (265 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR)) * fadeOutFactor >> 8;
+                    }
+                    else
+                    {
+                        outR = (delaybuf[readIndR] << 3) * (265 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR);
+                    }
+
+                    if (phaseR < fadeLength)
+                    {
+                        int32_t fadeInFactor = phaseR * 256 / fadeLength;
+                        outR = outR * fadeInFactor >> 8;
+                    }
 
                     if (loopLength > 0)
                     {
                         outCV = (cvBuf[readIndL] * (265 - rL) + cvBuf[(readIndL + 1) % loopLength] * rL) >> 8;
-                        // outCV = ((1000 * lastCV) + (3095 * outCV)) >> 12;
-                        // lastCV = outCV;
-
                         qSample = quantSample(outCV);
                     }
 
