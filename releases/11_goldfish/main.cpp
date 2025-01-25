@@ -85,6 +85,19 @@ public:
             bool risingEdge1 = PulseIn1RisingEdge();
             bool risingEdge2 = PulseIn2RisingEdge();
 
+            lowPassMain = (lastLowPassMain * 4000 + (main) * 95) >> 12;
+            lastLowPassMain = lowPassMain;
+
+            // Calculate big knob + audio2 attenuversion parameter. -2048 to 2047.
+            if (Connected(Input::Audio2))
+            {
+                bigKnob_CV = (2048 * AudioIn2() >> 12) * (2048 * (2048 - lowPassMain) >> 12) >> 12;
+            }
+            else
+            {
+                bigKnob_CV = 2048 - lowPassMain;
+            }
+
             int16_t qSample;
 
             if (halftime)
@@ -98,9 +111,6 @@ public:
                 x = KnobVal(Knob::X);
                 y = KnobVal(Knob::Y);
                 main = KnobVal(Knob::Main);
-
-                lowPassMain = (lastLowPassMain * 4000 + (main) * 95) >> 12;
-                lastLowPassMain = lowPassMain;
 
                 // Read inputs
                 cv1 = CVIn1();               // -2048 to 2047
@@ -197,16 +207,8 @@ public:
 
                     int32_t kL, kR;
 
-                    if (Connected(Input::Audio2))
-                    {
-                        kL = audioR * (lowPassMain - 2048) >> 11;
-                        kR = audioR * (2048 - lowPassMain) >> 11;
-                    }
-                    else
-                    {
-                        kL = 4095 - lowPassMain;
-                        kR = lowPassMain;
-                    }
+                    kL = bigKnob_CV + 2048;
+                    kR = 2048 - bigKnob_CV;
 
                     int64_t cvL = kL;
                     int64_t cvR = kR;
@@ -287,14 +289,14 @@ public:
                 case PLAY:
                 {
                     // play the loop, ignore the input
-                    int32_t k = lowPassMain >> 1;
+                    int32_t k = (bigKnob_CV + 2048) >> 1;
                     int32_t dphaseL;
                     int32_t dphaseR;
 
                     if (Connected(Input::Audio2))
                     {
-                        dphaseL = k + (audioR * (1024 - k) >> 11);
-                        dphaseR = k + (-1 * audioR * (1024 - k) >> 11);
+                        dphaseL = k + (bigKnob_CV + 1024);
+                        dphaseR = k - (bigKnob_CV + 1024);
                     }
                     else
                     {
@@ -486,6 +488,7 @@ private:
     uint32_t startPosR;
     int lowPassMain = 0;
     int lastLowPassMain = 0;
+    int16_t bigKnob_CV;
     int loopLength = 0;
     bool reset = false;
     int32_t outL;
