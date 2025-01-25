@@ -85,17 +85,25 @@ public:
             bool risingEdge1 = PulseIn1RisingEdge();
             bool risingEdge2 = PulseIn2RisingEdge();
 
-            lowPassMain = (lastLowPassMain * 4000 + (main) * 95) >> 12;
-            lastLowPassMain = lowPassMain;
+            // lowPassMain = (lastLowPassMain * 4000 + (main) * 95) >> 12;
+            // lastLowPassMain = lowPassMain;
+
+            main = KnobVal(Knob::Main);
+            x = KnobVal(Knob::X);
+            y = KnobVal(Knob::Y);
+
+            main = virtualDetentedKnob(main);
+            x = virtualDetentedKnob(x);
+            y = virtualDetentedKnob(y);
 
             // Calculate big knob + audio2 attenuversion parameter. -2048 to 2047.
             if (Connected(Input::Audio2))
             {
-                bigKnob_CV = (2048 * AudioIn2() >> 12) * (2048 * (2048 - lowPassMain) >> 12) >> 12;
+                bigKnob_CV = (AudioIn2() * (2048 - main) >> 12) + 1;
             }
             else
             {
-                bigKnob_CV = 2048 - lowPassMain;
+                bigKnob_CV = 2048 - main + 1;
             }
 
             int16_t qSample;
@@ -107,10 +115,6 @@ public:
 
                 bool pulseL = false;
                 bool pulseR = false;
-
-                x = KnobVal(Knob::X);
-                y = KnobVal(Knob::Y);
-                main = KnobVal(Knob::Main);
 
                 // Read inputs
                 cv1 = CVIn1();               // -2048 to 2047
@@ -140,7 +144,7 @@ public:
                 int16_t fromBufferR = 0;
 
                 internalClockRate = cabs(x - 2048) * 50 >> 12 + 1;
-                divisor = (cabs(y-2048) * 16 >> 12) + 1;
+                divisor = (cabs(y - 2048) * 16 >> 12) + 1;
 
                 // BUFFERS LOOPS/DELAYSSS
 
@@ -205,10 +209,10 @@ public:
 
                     // Delay code from Chris's amazing Utility Pair modfified slightly to remove internal feedback and add stereo
 
-                    int32_t kL, kR;
+                    int32_t k = (bigKnob_CV + 2048) >> 1;
 
-                    kL = bigKnob_CV + 2048;
-                    kR = 2048 - bigKnob_CV;
+                    int32_t kL = k + (k + 1024);
+                    int32_t kR = k - (k + 1024);
 
                     int64_t cvL = kL;
                     int64_t cvR = kR;
@@ -288,7 +292,7 @@ public:
                 }
                 case PLAY:
                 {
-                    int32_t k = (bigKnob_CV + 2048) >> 1;
+                    int32_t k = (2048 - bigKnob_CV) >> 1;
                     int32_t dphaseL;
                     int32_t dphaseR;
 
@@ -527,7 +531,7 @@ private:
         else if (Connected(Input::CV1))
         {
             thing1 = cv1 * (x - 2048) >> 11;
-            thing2 = y-2048;
+            thing2 = y - 2048;
         }
         else if (Connected(Input::CV2))
         {
@@ -538,7 +542,7 @@ private:
         else
         {
             thing1 = noise * (x - 2048) >> 11;
-            thing2 = y-2048;
+            thing2 = y - 2048;
             noiseLed = true;
         };
 
@@ -561,7 +565,7 @@ private:
         LedBrightness(3, cabs(thing2));
 
         // simple crossfade
-        result = (thing1 * (4095 - main)) + (thing2 * main) >> 12;
+        result = (thing1 * (bigKnob_CV + 2047) >> 12) + (thing2 * (4095 - (bigKnob_CV + 2047)) >> 12);
 
         return result;
     };
@@ -601,6 +605,25 @@ private:
             startPosL = x * loopLength >> 4;
             startPosR = y * loopLength >> 4;
         }
+    }
+
+    int16_t virtualDetentedKnob(int16_t val)
+    {
+        if (val > 4079)
+        {
+            val = 4095;
+        }
+        else if (val < 16)
+        {
+            val = 0;
+        }
+
+        if (cabs(val - 2048) < 16)
+        {
+            val = 2048;
+        }
+
+        return val;
     }
 };
 
