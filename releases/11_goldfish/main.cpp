@@ -139,8 +139,8 @@ public:
                 int16_t fromBufferL = 0;
                 int16_t fromBufferR = 0;
 
-                internalClockRate = (x * x / 178 >> 12) + 1;
-                divisor = (y * 16 >> 12) + 1;
+                internalClockRate = cabs(x - 2048) * 50 >> 12 + 1;
+                divisor = (cabs(y-2048) * 16 >> 11) + 1;
 
                 // BUFFERS LOOPS/DELAYSSS
 
@@ -522,32 +522,32 @@ private:
 
         if (Connected(Input::CV1) && Connected(Input::CV2))
         {
-            thing1 = cv1 * x >> 12;
-            thing2 = cv2 * y >> 12;
+            thing1 = cv1 * (x - 2048) >> 11;
+            thing2 = cv2 * (y - 2048) >> 11;
         }
         else if (Connected(Input::CV1))
         {
-            thing1 = cv1 * x >> 12;
-            thing2 = y >> 1;
+            thing1 = cv1 * (x - 2048) >> 11;
+            thing2 = y-2048;
         }
         else if (Connected(Input::CV2))
         {
-            thing1 = x * noise >> 12;
-            thing2 = cv2 * y >> 12;
+            thing1 = noise * (x - 2048) >> 11;
+            thing2 = cv2 * (y - 2048) >> 11;
             noiseLed = true;
         }
         else
         {
-            thing1 = x * noise >> 12;
-            thing2 = y >> 1;
+            thing1 = noise * (x - 2048) >> 11;
+            thing2 = y-2048;
             noiseLed = true;
         };
 
         if (noiseLed)
         {
-            if (noise > 1300)
+            if (cabs(noise) > 1300)
             {
-                LedBrightness(2, x);
+                LedBrightness(2, cabs(x - 2048));
             }
             else
             {
@@ -584,18 +584,18 @@ private:
     {
         if (Connected(Input::CV1) && Connected(Input::CV2))
         {
-            startPosL = (x * cv1 >> 12) * loopLength >> 4;
-            startPosR = (y * cv2 >> 12) * loopLength >> 4;
+            startPosL = (x * (cv1 + 2048) >> 12) * loopLength >> 4;
+            startPosR = (y * (cv2 + 2048) >> 12) * loopLength >> 4;
         }
         else if (Connected(Input::CV1))
         {
-            startPosL = (x * cv1 >> 12) * loopLength >> 4;
+            startPosL = (x * (cv1 + 2048) >> 12) * loopLength >> 4;
             startPosR = y * loopLength >> 4;
         }
         else if (Connected(Input::CV2))
         {
             startPosL = x * loopLength >> 4;
-            startPosR = (y * cv2 >> 12) * loopLength >> 4;
+            startPosR = (y * (cv2 + 2048) >> 12) * loopLength >> 4;
         }
         else
         {
