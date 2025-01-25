@@ -140,7 +140,7 @@ public:
                 int16_t fromBufferR = 0;
 
                 internalClockRate = cabs(x - 2048) * 50 >> 12 + 1;
-                divisor = (cabs(y-2048) * 16 >> 11) + 1;
+                divisor = (cabs(y-2048) * 16 >> 12) + 1;
 
                 // BUFFERS LOOPS/DELAYSSS
 
@@ -288,7 +288,6 @@ public:
                 }
                 case PLAY:
                 {
-                    // play the loop, ignore the input
                     int32_t k = (bigKnob_CV + 2048) >> 1;
                     int32_t dphaseL;
                     int32_t dphaseR;
