@@ -312,7 +312,9 @@ public:
 
                     calculateStartPos();
 
-                    checkZero = zeroCrossing(outL, lastSampleL) && zeroCrossing(outR, lastSampleR);
+                    //This is really only a best effort to reduce discontinuities in the audio output that cause clicks on reset
+                    //It's not perfect and could be improved
+                    checkZero = zeroCrossing(outL, lastSampleL);
 
                     lastSampleL = fromBufferL;
                     lastSampleR = fromBufferR;
