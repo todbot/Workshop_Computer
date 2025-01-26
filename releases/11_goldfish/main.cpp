@@ -106,8 +106,8 @@ public:
 
                 audioL <<= 2;
 
-                int32_t ooa0 = 16302, a2oa0 = 16221; // Q=100;
-                //	int32_t ooa0=15603, a2oa0=14823;//Q=10;
+               int32_t ooa0 = 8192, a2oa0 = 8092; // Q=100;
+                //	int32_t ooa0=7801, a2oa0=7411;//Q=10;
                 int32_t audioLf = (ooa0 * (audioL + audioL2) - a2oa0 * audioLf2) >> 14;
                 audioL2 = audioL1;
                 audioL1 = audioL;
@@ -312,7 +312,9 @@ public:
 
                     calculateStartPos();
 
-                    checkZero = zeroCrossing(outL, lastSampleL) && zeroCrossing(outR, lastSampleR);
+                    //This is really only a best effort to reduce discontinuities in the audio output that cause clicks on reset
+                    //It's not perfect and could be improved
+                    checkZero = zeroCrossing(outL, lastSampleL);
 
                     lastSampleL = fromBufferL;
                     lastSampleR = fromBufferR;
