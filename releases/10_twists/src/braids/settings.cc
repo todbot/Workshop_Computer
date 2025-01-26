@@ -63,6 +63,10 @@ const SettingsData kInitSettings = {
   0,  // AD->VCA
   0,  // Quantizer root
   
+  0,  // MIDI - engine
+  0,  // MIDI - out 1
+  0,  // MIDI - out 2
+
   0,  // Selected shape from available subset
 
   50,
