@@ -2,6 +2,7 @@
 #include "quantiser.h"
 #include "divider.h"
 
+// 12 bit random number generator
 uint32_t __not_in_flash_func(rnd12)()
 {
     static uint32_t lcg_seed = 1;
@@ -9,18 +10,20 @@ uint32_t __not_in_flash_func(rnd12)()
     return lcg_seed >> 20;
 }
 
+// Zero crossing detector
 bool __not_in_flash_func(zeroCrossing)(int16_t a, int16_t b)
 {
     return (a < 0 && b >= 0) || (a >= 0 && b < 0);
 };
 
+// Highpass filter for delay
 int32_t __not_in_flash_func(highpass_process)(int32_t *out, int32_t b, int32_t in)
 {
     *out += (((in - *out) * b) >> 16);
     return in - *out;
 }
 
-/// Goldfish
+/// Goldfish class
 class Goldfish : public ComputerCard
 {
 public:
@@ -46,52 +49,26 @@ public:
         internalClockRate = 1;
     };
 
-    static constexpr uint32_t bufSize = 64000;
-    int16_t delaybuf[bufSize];
-    int16_t cvBuf[bufSize];
-    unsigned writeInd, readIndL, readIndR, readIndCV, cvsL, cvsR;
-    int32_t ledtimer = 0;
-    int32_t hpf = 0;
-    bool checkZero = false;
-    int phaseL = 0;
-    int phaseR = 0;
-    bool halftime;
-    Divider clockDivider;
-    int divisor;
-    int internalClockCounter = 0;
-    int internalClockRate;
-    bool lastRisingEdge1 = false;
-    bool lastRisingEdge2 = false;
-    int audioL1 = 0;
-    int audioL2 = 0;
-    int audioR1 = 0;
-    int audioR2 = 0;
-    int audioLf1 = 0;
-    int audioLf2 = 0;
-    int audioRf1 = 0;
-    int audioRf2 = 0;
-
+    /// Main audio processing function called at 48kHz
     virtual void ProcessSample()
     {
         halftime = !halftime;
+
+        // simple startup counter to allow time for initialisation
         if (startupCounter)
             startupCounter--;
 
-        // Hainbach says half time is the best time (no really I'm just buying more delay time)
         if (startupCounter == 0)
         {
-
-            // pulse read can't happen at halftime
             bool risingEdge1 = PulseIn1RisingEdge();
             bool risingEdge2 = PulseIn2RisingEdge();
 
-            // lowPassMain = (lastLowPassMain * 4000 + (main) * 95) >> 12;
-            // lastLowPassMain = lowPassMain;
-
+            // Read knobs
             main = KnobVal(Knob::Main);
             x = KnobVal(Knob::X);
             y = KnobVal(Knob::Y);
 
+            // Virtual detent the knob values
             main = virtualDetentedKnob(main);
             x = virtualDetentedKnob(x);
             y = virtualDetentedKnob(y);
@@ -106,11 +83,13 @@ public:
                 bigKnob_CV = 2048 - main + 1;
             }
 
-            int16_t qSample;
-
+            // Hainbach says half time is the best time (no really I'm just buying more delay time)
             if (halftime)
             {
+                // 12 bit noise scaled appropriately
                 int16_t noise = rnd12() - 2048;
+
+                // Read switch
                 Switch s = SwitchVal();
 
                 bool pulseL = false;
@@ -123,6 +102,7 @@ public:
                 int16_t audioR = AudioIn2(); // -2048 to 2047
 
                 // 12kHz notch filter, to remove interference from mux lines (only left channel)
+                //Thank you to Chris Johnson for the notch filter code
 
                 audioL <<= 2;
 
@@ -143,11 +123,13 @@ public:
                 int16_t fromBufferL = 0;
                 int16_t fromBufferR = 0;
 
+
+                // internal clock rate and divisor
                 internalClockRate = cabs(x - 2048) * 50 >> 12 + 1;
                 divisor = (cabs(y - 2048) * 16 >> 12) + 1;
 
-                // BUFFERS LOOPS/DELAYSSS
 
+                //here we decide the read/write state based on the switch position and set the mode accordingly
                 if ((s == Switch::Down) && (lastSwitchVal != Switch::Down))
                 {
                     runMode = RECORD;
@@ -180,6 +162,7 @@ public:
 
                 cvMix = calcCVMix(noise);
 
+                // Internal clock
                 internalClockCounter += internalClockRate;
 
                 if (internalClockCounter >= bufSize >> 2)
@@ -199,15 +182,19 @@ public:
 
                 lastSwitchVal = s;
 
+
+                // Main audio processing depending on mode (record, delay, play)
                 switch (runMode)
                 {
                 case DELAY:
                 {
-                    // record the loop, output audio delayed (patch your own feedback) and output normal cv mix signals
-
+                    
+                    //Delay code is a mutated version of Chris Johnson's Utility Pair delay code
+                    //In delay mode the audio is written to the delay buffer and read back with a delay time set by the big knob
+                    //each output (left and right) is read back with a different delay time, set by the big knob and the CV input
+                    
+                    //CVout2 is set to the quantised CV mix, the quantiser is also from Chris Johnson's Utility Pair project
                     qSample = quantSample(cvMix);
-
-                    // Delay code from Chris's amazing Utility Pair modfified slightly to remove internal feedback and add stereo
 
                     int32_t k = (bigKnob_CV + 2048) >> 1;
 
@@ -267,7 +254,8 @@ public:
                 }
                 case RECORD:
                 {
-                    // reset clock, stop recording, playback, loop at the end of the delay buffer
+
+                    // in record mode the audio is written to the delay buffer and the CV input is written to the CV buffer
                     qSample = quantSample(cvMix);
 
                     cvBuf[writeInd] = cvMix;
@@ -292,6 +280,10 @@ public:
                 }
                 case PLAY:
                 {
+
+                    //Play code is a mutated version of Chris Johnson's Utility Pair Looper
+                    //In play mode the audio is read back from the delay buffer with a playback speed set by the big knob
+
                     int32_t k = (2048 - bigKnob_CV) >> 1;
                     int32_t dphaseL;
                     int32_t dphaseR;
@@ -508,6 +500,33 @@ private:
     int16_t cv2;
     int16_t cvMix;
 
+    static constexpr uint32_t bufSize = 64000;
+    int16_t delaybuf[bufSize];
+    int16_t cvBuf[bufSize];
+    unsigned writeInd, readIndL, readIndR, cvsL, cvsR;
+    int32_t ledtimer = 0;
+    int32_t hpf = 0;
+    bool checkZero = false;
+    int phaseL = 0;
+    int phaseR = 0;
+    bool halftime;
+    Divider clockDivider;
+    int divisor;
+    int internalClockCounter = 0;
+    int internalClockRate;
+    bool lastRisingEdge1 = false;
+    bool lastRisingEdge2 = false;
+    int audioL1 = 0;
+    int audioL2 = 0;
+    int audioR1 = 0;
+    int audioR2 = 0;
+    int audioLf1 = 0;
+    int audioLf2 = 0;
+    int audioRf1 = 0;
+    int audioRf2 = 0;
+
+    int16_t qSample;
+
     enum RunMode
     {
         RECORD,
@@ -515,6 +534,8 @@ private:
         PLAY
     } runMode;
 
+
+    // Calculate the mix of the CV inputs based on which inputs are connected
     int16_t calcCVMix(int16_t noise)
     {
         int16_t result = 0;
@@ -629,7 +650,15 @@ private:
 
 int main()
 {
+    // Create an instance of the Goldfish class
     Goldfish gf;
+
+    // Enable the normalisation probe for the Goldfish instance
     gf.EnableNormalisationProbe();
+
+    // Run the main processing loop of the Goldfish instance
     gf.Run();
+
+    // Return 0 to indicate successful execution
+    return 0;
 }
