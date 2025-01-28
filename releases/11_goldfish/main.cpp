@@ -199,7 +199,7 @@ public:
                     int32_t k = (bigKnob_CV + 2048) >> 1;
 
                     int32_t kL = k + (k + 1024);
-                    int32_t kR = k - (k + 1024);
+                    int32_t kR = k + (k - 1024);
 
                     int64_t cvL = kL;
                     int64_t cvR = kR;
@@ -291,7 +291,7 @@ public:
                     if (Connected(Input::Audio2))
                     {
                         dphaseL = k + (bigKnob_CV + 1024);
-                        dphaseR = k - (bigKnob_CV + 1024);
+                        dphaseR = k + (bigKnob_CV - 1024);
                     }
                     else
                     {
