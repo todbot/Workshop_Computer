@@ -196,10 +196,10 @@ public:
                     //CVout2 is set to the quantised CV mix, the quantiser is also from Chris Johnson's Utility Pair project
                     qSample = quantSample(cvMix);
 
-                    int32_t k = (bigKnob_CV + 2048) >> 1;
+                    int32_t k = (bigKnob_CV + 2048) >> 1; //2048 to 0
 
-                    int32_t kL = k + (k + 1024);
-                    int32_t kR = k + (k - 1024);
+                    int32_t kL = 2 * k + 1024;
+                    int32_t kR = -2 * k + 5120;
 
                     int64_t cvL = kL;
                     int64_t cvR = kR;
