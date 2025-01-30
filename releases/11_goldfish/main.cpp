@@ -365,11 +365,11 @@ public:
                     if (phaseL >= (loopLength << 8) - fadeLength)
                     {
                         int32_t fadeOutFactor = ((loopLength << 8) - phaseL) * 256 / fadeLength;
-                        outL = ((delaybuf[readIndL] << 3) * (265 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL)) * fadeOutFactor >> 8;
+                        outL = ((delaybuf[readIndL] << 3) * (256 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL)) * fadeOutFactor >> 8;
                     }
                     else
                     {
-                        outL = (delaybuf[readIndL] << 3) * (265 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL);
+                        outL = (delaybuf[readIndL] << 3) * (256 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL);
                     }
 
                     // Apply fade-in at the beginning of the loop
@@ -382,11 +382,11 @@ public:
                     if (phaseR >= (loopLength << 8) - fadeLength)
                     {
                         int32_t fadeOutFactor = ((loopLength << 8) - phaseR) * 256 / fadeLength;
-                        outR = ((delaybuf[readIndR] << 3) * (265 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR)) * fadeOutFactor >> 8;
+                        outR = ((delaybuf[readIndR] << 3) * (256 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR)) * fadeOutFactor >> 8;
                     }
                     else
                     {
-                        outR = (delaybuf[readIndR] << 3) * (265 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR);
+                        outR = (delaybuf[readIndR] << 3) * (256 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR);
                     }
 
                     if (phaseR < fadeLength)
@@ -397,7 +397,7 @@ public:
 
                     if (loopLength > 0)
                     {
-                        outCV = (cvBuf[readIndL] * (265 - rL) + cvBuf[(readIndL + 1) % loopLength] * rL) >> 8;
+                        outCV = (cvBuf[readIndL] * (256 - rL) + cvBuf[(readIndL + 1) % loopLength] * rL) >> 8;
                         qSample = quantSample(outCV);
                     }
 
