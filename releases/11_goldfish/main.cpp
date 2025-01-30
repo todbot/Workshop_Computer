@@ -401,8 +401,8 @@ public:
                         qSample = quantSample(outCV);
                     }
 
-                    outL >>= 12;
-                    outR >>= 12;
+                    outL >>= 11;
+                    outR >>= 11;
 
                     break;
                 }
