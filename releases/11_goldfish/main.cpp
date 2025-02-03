@@ -106,8 +106,8 @@ public:
 
                 audioL <<= 2;
 
-                int32_t ooa0 = 16302, a2oa0 = 16221; // Q=100;
-                //	int32_t ooa0=15603, a2oa0=14823;//Q=10;
+               int32_t ooa0 = 8192, a2oa0 = 8092; // Q=100;
+                //	int32_t ooa0=7801, a2oa0=7411;//Q=10;
                 int32_t audioLf = (ooa0 * (audioL + audioL2) - a2oa0 * audioLf2) >> 14;
                 audioL2 = audioL1;
                 audioL1 = audioL;
@@ -196,10 +196,10 @@ public:
                     //CVout2 is set to the quantised CV mix, the quantiser is also from Chris Johnson's Utility Pair project
                     qSample = quantSample(cvMix);
 
-                    int32_t k = (bigKnob_CV + 2048) >> 1;
+                    int32_t k = (bigKnob_CV + 2048) >> 1; //2048 to 0
 
-                    int32_t kL = k + (k + 1024);
-                    int32_t kR = k - (k + 1024);
+                    int32_t kL = 2 * k + 1024;
+                    int32_t kR = -2 * k + 5120;
 
                     int64_t cvL = kL;
                     int64_t cvR = kR;
@@ -291,7 +291,7 @@ public:
                     if (Connected(Input::Audio2))
                     {
                         dphaseL = k + (bigKnob_CV + 1024);
-                        dphaseR = k - (bigKnob_CV + 1024);
+                        dphaseR = k + (bigKnob_CV - 1024);
                     }
                     else
                     {
@@ -312,7 +312,9 @@ public:
 
                     calculateStartPos();
 
-                    checkZero = zeroCrossing(outL, lastSampleL) && zeroCrossing(outR, lastSampleR);
+                    //This is really only a best effort to reduce discontinuities in the audio output that cause clicks on reset
+                    //It's not perfect and could be improved
+                    checkZero = zeroCrossing(outL, lastSampleL);
 
                     lastSampleL = fromBufferL;
                     lastSampleR = fromBufferR;
@@ -363,11 +365,11 @@ public:
                     if (phaseL >= (loopLength << 8) - fadeLength)
                     {
                         int32_t fadeOutFactor = ((loopLength << 8) - phaseL) * 256 / fadeLength;
-                        outL = ((delaybuf[readIndL] << 3) * (265 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL)) * fadeOutFactor >> 8;
+                        outL = ((delaybuf[readIndL] << 3) * (256 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL)) * fadeOutFactor >> 8;
                     }
                     else
                     {
-                        outL = (delaybuf[readIndL] << 3) * (265 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL);
+                        outL = (delaybuf[readIndL] << 3) * (256 - rL) + (delaybuf[(readIndL + 1) % loopLength] << 3) * (rL);
                     }
 
                     // Apply fade-in at the beginning of the loop
@@ -380,11 +382,11 @@ public:
                     if (phaseR >= (loopLength << 8) - fadeLength)
                     {
                         int32_t fadeOutFactor = ((loopLength << 8) - phaseR) * 256 / fadeLength;
-                        outR = ((delaybuf[readIndR] << 3) * (265 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR)) * fadeOutFactor >> 8;
+                        outR = ((delaybuf[readIndR] << 3) * (256 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR)) * fadeOutFactor >> 8;
                     }
                     else
                     {
-                        outR = (delaybuf[readIndR] << 3) * (265 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR);
+                        outR = (delaybuf[readIndR] << 3) * (256 - rR) + (delaybuf[(readIndR + 1) % loopLength] << 3) * (rR);
                     }
 
                     if (phaseR < fadeLength)
@@ -395,12 +397,12 @@ public:
 
                     if (loopLength > 0)
                     {
-                        outCV = (cvBuf[readIndL] * (265 - rL) + cvBuf[(readIndL + 1) % loopLength] * rL) >> 8;
+                        outCV = (cvBuf[readIndL] * (256 - rL) + cvBuf[(readIndL + 1) % loopLength] * rL) >> 8;
                         qSample = quantSample(outCV);
                     }
 
-                    outL >>= 12;
-                    outR >>= 12;
+                    outL >>= 11;
+                    outR >>= 11;
 
                     break;
                 }
