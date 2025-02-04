@@ -219,6 +219,10 @@ public:
 	uint64_t UniqueCardID()	{return uniqueID;}
 	
 	static ComputerCard *ThisPtr() {return thisptr;}
+
+	
+	void Abort();
+	
 private:
 	
 	typedef struct
@@ -448,9 +452,21 @@ void __not_in_flash_func(ComputerCard::AudioWorker)()
 			adc_set_round_robin(0b0001111U);
 			adc_run(true);
 		}
+		else if (runADCMode == RUN_ADC_MODE_ADC_STOPPED)
+		{
+			break;
+		}
+		   
+
 	}
 }
 
+void ComputerCard::Abort()
+{
+	runADCMode = RUN_ADC_MODE_REQUEST_ADC_STOP;
+}
+
+	  
 
 // Per-audio-sample ISR, called when two sets of ADC samples have been collected from all four inputs
 void __not_in_flash_func(ComputerCard::BufferFull)()
@@ -575,6 +591,11 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 		adc_set_round_robin(0);
 		adc_select_input(0);
 
+		dma_hw->ints0 = 1u << adc_dma; // reset adc interrupt flag
+		dma_channel_cleanup(adc_dma);
+		dma_channel_cleanup(spi_dma);
+		irq_remove_handler(DMA_IRQ_0, ComputerCard::AudioCallback);
+		
 		runADCMode = RUN_ADC_MODE_ADC_STOPPED;
 	}
 
@@ -616,8 +637,6 @@ ComputerCard::ComputerCard()
 	adc_run(false);
 	adc_select_input(0);
 
-	sleep_ms(50);
-	
 
 	useNormProbe = false;
 	for (int i=0; i<6; i++)

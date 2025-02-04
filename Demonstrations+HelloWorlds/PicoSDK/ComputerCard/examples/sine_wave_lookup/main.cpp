@@ -33,7 +33,7 @@ public:
 		for (unsigned i=0; i<tableSize; i++)
 		{
 			// just shy of 2^15 * sin
-			sine[i] = int16_t(32000*sin(2*i*M_TWOPI/double(tableSize)));
+			sine[i] = int16_t(32000*sin(2*i*M_PI/double(tableSize)));
 		}
 
 	}
