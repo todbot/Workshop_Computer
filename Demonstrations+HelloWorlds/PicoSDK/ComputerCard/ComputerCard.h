@@ -219,6 +219,10 @@ public:
 	uint64_t UniqueCardID()	{return uniqueID;}
 	
 	static ComputerCard *ThisPtr() {return thisptr;}
+
+	
+	void Abort();
+	
 private:
 	
 	typedef struct
@@ -448,9 +452,21 @@ void __not_in_flash_func(ComputerCard::AudioWorker)()
 			adc_set_round_robin(0b0001111U);
 			adc_run(true);
 		}
+		else if (runADCMode == RUN_ADC_MODE_ADC_STOPPED)
+		{
+			break;
+		}
+		   
+
 	}
 }
 
+void ComputerCard::Abort()
+{
+	runADCMode = RUN_ADC_MODE_REQUEST_ADC_STOP;
+}
+
+	  
 
 // Per-audio-sample ISR, called when two sets of ADC samples have been collected from all four inputs
 void __not_in_flash_func(ComputerCard::BufferFull)()
@@ -461,7 +477,7 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 	// Internal variables for IIR filters on knobs/cv
 	static volatile int32_t knobssm[4] = { 0, 0, 0, 0 };
 	static volatile int32_t cvsm[2] = { 0, 0 };
-	static int np = 0, np1 = 0, np2 = 0;
+	__attribute__((unused)) static int np = 0, np1 = 0, np2 = 0;
 
 	adc_select_input(0);
 
@@ -575,6 +591,11 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 		adc_set_round_robin(0);
 		adc_select_input(0);
 
+		dma_hw->ints0 = 1u << adc_dma; // reset adc interrupt flag
+		dma_channel_cleanup(adc_dma);
+		dma_channel_cleanup(spi_dma);
+		irq_remove_handler(DMA_IRQ_0, ComputerCard::AudioCallback);
+		
 		runADCMode = RUN_ADC_MODE_ADC_STOPPED;
 	}
 
@@ -616,8 +637,6 @@ ComputerCard::ComputerCard()
 	adc_run(false);
 	adc_select_input(0);
 
-	sleep_ms(50);
-	
 
 	useNormProbe = false;
 	for (int i=0; i<6; i++)
@@ -869,7 +888,7 @@ void ComputerCard::CalcCalCoeffs(int channel)
 
 	for (int i = 0; i < N; i++)
 	{
-		float v = calibrationTable[channel][i].voltage * 0.1;
+		float v = calibrationTable[channel][i].voltage * 0.1f;
 		float dac = calibrationTable[channel][i].dacSetting;
 		sumV += v;
 		sumDAC += dac;
@@ -888,8 +907,8 @@ void ComputerCard::CalcCalCoeffs(int channel)
 	}
 	calCoeffs[channel].b = (sumDAC - calCoeffs[channel].m * sumV) / N;
 
-	calCoeffs[channel].mi = (calCoeffs[channel].m * 1.333333333333333f + 0.5f);
-	calCoeffs[channel].bi = calCoeffs[channel].b + 0.5f;
+	calCoeffs[channel].mi = int32_t(calCoeffs[channel].m * 1.333333333333333f + 0.5f);
+	calCoeffs[channel].bi = int32_t(calCoeffs[channel].b + 0.5f);
 }
 
 
