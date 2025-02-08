@@ -66,7 +66,10 @@ public:
 	int32_t __not_in_flash_func(KnobVal)(Knob ind) {return knobs[ind];}
 
 	/// Read switch position
-	Switch __not_in_flash_func(SwitchVal)() {return static_cast<Switch>((knobs[3]>1000) + (knobs[3]>3000));}
+	Switch __not_in_flash_func(SwitchVal)() {return switchVal;}
+
+	/// Read switch position
+	bool __not_in_flash_func(SwitchChanged)() {return switchVal != lastSwitchVal;}
 
 
 	/// Set Audio output (values -2048 to 2047)
@@ -270,6 +273,7 @@ private:
 	volatile bool connected[6] = {0,0,0,0,0,0};
 	bool useNormProbe;
 
+	Switch switchVal, lastSwitchVal;
 	
 	volatile uint8_t runADCMode;
 
@@ -300,6 +304,7 @@ private:
 		thisptr->BufferFull();
 	}
 	static ComputerCard *thisptr;
+
 };
 
 
@@ -471,6 +476,7 @@ void ComputerCard::Abort()
 // Per-audio-sample ISR, called when two sets of ADC samples have been collected from all four inputs
 void __not_in_flash_func(ComputerCard::BufferFull)()
 {
+	static int startupCounter = 8; // Decreases by 1 each sample, can do startup things when nonzero.
 	static int mux_state = 0;
 	static int norm_probe_count = 0;
 
@@ -526,7 +532,15 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 	knobssm[knob] = (127 * (knobssm[knob]) + 16 * ADC_Buffer[cpuPhase][6]) >> 7;
 	knobs[knob] = knobssm[knob] >> 4;
 
-
+	// Set switch value
+	switchVal = static_cast<Switch>((knobs[3]>1000) + (knobs[3]>3000));
+	if (startupCounter)
+	{
+		// Don't detect switch changes in first few cycles
+		lastSwitchVal = switchVal;
+		// Should initialise knob and CV smoothing filters here too
+	}
+	
 	////////////////////////////
 	// Normalisation probe
 
@@ -584,7 +598,7 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 
 	mux_state = next_mux_state;
 
-	// Indicate to usb core that we've finished running this sample.
+	// If Abort called, stop ADC and DMA
 	if (runADCMode == RUN_ADC_MODE_REQUEST_ADC_STOP)
 	{
 		adc_run(false);
@@ -600,6 +614,10 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 	}
 
 	norm_probe_count = (norm_probe_count + 1) & 0xF;
+
+	lastSwitchVal = switchVal;
+	
+	if (startupCounter) startupCounter--;
 }
 
 ComputerCard::HardwareVersion ComputerCard::ProbeHardwareVersion()
