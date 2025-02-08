@@ -1,6 +1,6 @@
 #include "ComputerCard.h"
 
-/// Dual sample and hold
+/// Triple sample and hold
 
 /// Updates audio output to take the value of the audio input
 /// only when the corresponding pulse input has a rising edge.
@@ -10,6 +10,11 @@
 /// If pulse input not connected, update output every sample,
 /// (tracking audio input if connected, or producing white noise
 /// if audio input not connected.)
+
+/// CV 1 output is controlled by the switch.
+/// If switch is up, CV 1 output tracks CV 1 input
+/// If switch is in middle position, CV 1 output is held constant
+/// CV 1 output is set to CV 1 input when the switch is moved from middle to down
 class SampleAndHold : public ComputerCard
 {
 public:
@@ -48,6 +53,17 @@ public:
 		if (PulseIn2RisingEdge() || Disconnected(Input::Pulse2))
 		{
 			AudioOut2(Connected(Input::Audio2)?AudioIn2():rnd());
+		}
+
+
+		// If the switch is up,
+		// or, if the switch is down and has changed to down this sample,
+		// then set CV 1 output to CV 1 input
+		// (Otherwise, leave CV 1 output at its previous value)
+		if (SwitchVal() == Switch::Up
+			|| (SwitchVal() == Switch::Down && SwitchChanged()))
+		{
+			CVOut1(CVIn1());
 		}
 	}
 };
