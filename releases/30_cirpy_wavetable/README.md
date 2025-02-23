@@ -24,8 +24,8 @@ Video demo2: https://youtu.be/Nxx_5Xhv1X8
   - Pulse 1 & 2 Out -- PWM audio out
 
 ## Pre-built UF2
-- See `build` directory for a UF2 to copy to RPI-RP2 and you're off!
-- Also availble at https://github.com/todbot/Hello_Computer/releases/
+- See [`build`](./build/) directory for a UF2 to copy to RPI-RP2 and you're off!
+- Also availble at https://github.com/todbot/Workshop_Computer/tree/main/releases/30_cirpy_wavetable/build
 
 The prebuilt UF2 contains the following wavetables:
 

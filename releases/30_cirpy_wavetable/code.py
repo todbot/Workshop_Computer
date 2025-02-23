@@ -34,6 +34,9 @@ import adafruit_wave
 from adafruit_debouncer import Debouncer
 from mtm_computer import Computer, map_range, gamma_correct
 
+import microcontroller
+microcontroller.cpu.frequency = 200_000_000  # official overclock
+
 wav_dir = "/wav"
 note_quant = True  # Set to True to track MIDI notes, else slides between notes
 sample_rate = 44100   # audio rate, or 22050 
