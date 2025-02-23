@@ -1,5 +1,5 @@
 #include "braids/usb_worker.h"
-
+#include "braids/midi_message.h"
 #include "bsp/board.h"
 #include "tusb.h"
 
@@ -7,7 +7,8 @@
 
 namespace braids {
 
-void UsbWorker::Init() {
+void UsbWorker::Init(midi_in_callback_t midiInCallback) {
+	midi_in_callback = midiInCallback;
 }
 
 void UsbWorker::PostConfigProcessing() {
@@ -20,6 +21,9 @@ void UsbWorker::PostConfigProcessing() {
 	settings.SetValue(SETTING_AD_VCA, config_[OPT_ADVCA]);
 	settings.SetValue(SETTING_AD_ATTACK, config_[OPT_ADATTACK]);
 	settings.SetValue(SETTING_AD_DECAY, config_[OPT_ADDECAY]);
+	settings.SetValue(SETTING_MIDICHANNEL_ENGINE, config_[OPT_MIDICHANENGINE]);
+	settings.SetValue(SETTING_MIDICHANNEL_OUT1, config_[OPT_MIDICHANOUT1]);
+	settings.SetValue(SETTING_MIDICHANNEL_OUT2, config_[OPT_MIDICHANOUT2]);
 }
 
 void UsbWorker::SetConfigFromFlash() {
@@ -36,6 +40,9 @@ void UsbWorker::SetConfigFromFlash() {
 		config_[OPT_ADVCA] = settings.GetValue(SETTING_AD_VCA);
 		config_[OPT_ADATTACK] = settings.GetValue(SETTING_AD_ATTACK);
 		config_[OPT_ADDECAY] = settings.GetValue(SETTING_AD_DECAY);
+		config_[OPT_MIDICHANENGINE] = settings.GetValue(SETTING_MIDICHANNEL_ENGINE);
+		config_[OPT_MIDICHANOUT1] = settings.GetValue(SETTING_MIDICHANNEL_OUT1);
+		config_[OPT_MIDICHANOUT2] = settings.GetValue(SETTING_MIDICHANNEL_OUT2);
 	}
 }
 
@@ -109,9 +116,10 @@ void UsbWorker::MidiTask()
 		{
 			ProcessSysExCommand(packet_);
 		}
-		else 
+		else //if(midi_in_callback != NULL)
 		{
 			// else pass on to application midi message handler
+			midi_in_callback(packet_);
 		}
 	}
 }

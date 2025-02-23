@@ -149,7 +149,10 @@ enum Setting {
   SETTING_AD_COLOR,
   SETTING_AD_VCA,
   SETTING_QUANTIZER_ROOT,
-  SETTING_LAST_EDITABLE_SETTING = SETTING_QUANTIZER_ROOT,
+  SETTING_MIDICHANNEL_ENGINE,
+  SETTING_MIDICHANNEL_OUT1,
+  SETTING_MIDICHANNEL_OUT2,
+  SETTING_LAST_EDITABLE_SETTING = SETTING_MIDICHANNEL_OUT2,
   
   SETTING_SELECTED_AVAILABLE_SHAPE,
 
@@ -182,7 +185,10 @@ struct SettingsData {
   uint8_t ad_color;
   uint8_t ad_vca;
   uint8_t quantizer_root;
-  
+  uint8_t midi_channels_engine;
+  uint8_t midi_channels_out1;
+  uint8_t midi_channels_out2;
+
   uint8_t selected_available_shape = 0;
 
   int32_t pitch_cv_offset;

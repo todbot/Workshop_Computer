@@ -66,10 +66,7 @@ public:
 	int32_t __not_in_flash_func(KnobVal)(Knob ind) {return knobs[ind];}
 
 	/// Read switch position
-	Switch __not_in_flash_func(SwitchVal)() {return switchVal;}
-
-	/// Read switch position
-	bool __not_in_flash_func(SwitchChanged)() {return switchVal != lastSwitchVal;}
+	Switch __not_in_flash_func(SwitchVal)() {return static_cast<Switch>((knobs[3]>1000) + (knobs[3]>3000));}
 
 
 	/// Set Audio output (values -2048 to 2047)
@@ -222,10 +219,6 @@ public:
 	uint64_t UniqueCardID()	{return uniqueID;}
 	
 	static ComputerCard *ThisPtr() {return thisptr;}
-
-	
-	void Abort();
-	
 private:
 	
 	typedef struct
@@ -273,7 +266,6 @@ private:
 	volatile bool connected[6] = {0,0,0,0,0,0};
 	bool useNormProbe;
 
-	Switch switchVal, lastSwitchVal;
 	
 	volatile uint8_t runADCMode;
 
@@ -304,7 +296,6 @@ private:
 		thisptr->BufferFull();
 	}
 	static ComputerCard *thisptr;
-
 };
 
 
@@ -457,33 +448,20 @@ void __not_in_flash_func(ComputerCard::AudioWorker)()
 			adc_set_round_robin(0b0001111U);
 			adc_run(true);
 		}
-		else if (runADCMode == RUN_ADC_MODE_ADC_STOPPED)
-		{
-			break;
-		}
-		   
-
 	}
 }
 
-void ComputerCard::Abort()
-{
-	runADCMode = RUN_ADC_MODE_REQUEST_ADC_STOP;
-}
-
-	  
 
 // Per-audio-sample ISR, called when two sets of ADC samples have been collected from all four inputs
 void __not_in_flash_func(ComputerCard::BufferFull)()
 {
-	static int startupCounter = 8; // Decreases by 1 each sample, can do startup things when nonzero.
 	static int mux_state = 0;
 	static int norm_probe_count = 0;
 
 	// Internal variables for IIR filters on knobs/cv
 	static volatile int32_t knobssm[4] = { 0, 0, 0, 0 };
 	static volatile int32_t cvsm[2] = { 0, 0 };
-	__attribute__((unused)) static int np = 0, np1 = 0, np2 = 0;
+	static int np = 0, np1 = 0, np2 = 0;
 
 	adc_select_input(0);
 
@@ -532,15 +510,7 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 	knobssm[knob] = (127 * (knobssm[knob]) + 16 * ADC_Buffer[cpuPhase][6]) >> 7;
 	knobs[knob] = knobssm[knob] >> 4;
 
-	// Set switch value
-	switchVal = static_cast<Switch>((knobs[3]>1000) + (knobs[3]>3000));
-	if (startupCounter)
-	{
-		// Don't detect switch changes in first few cycles
-		lastSwitchVal = switchVal;
-		// Should initialise knob and CV smoothing filters here too
-	}
-	
+
 	////////////////////////////
 	// Normalisation probe
 
@@ -598,26 +568,17 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 
 	mux_state = next_mux_state;
 
-	// If Abort called, stop ADC and DMA
+	// Indicate to usb core that we've finished running this sample.
 	if (runADCMode == RUN_ADC_MODE_REQUEST_ADC_STOP)
 	{
 		adc_run(false);
 		adc_set_round_robin(0);
 		adc_select_input(0);
 
-		dma_hw->ints0 = 1u << adc_dma; // reset adc interrupt flag
-		dma_channel_cleanup(adc_dma);
-		dma_channel_cleanup(spi_dma);
-		irq_remove_handler(DMA_IRQ_0, ComputerCard::AudioCallback);
-		
 		runADCMode = RUN_ADC_MODE_ADC_STOPPED;
 	}
 
 	norm_probe_count = (norm_probe_count + 1) & 0xF;
-
-	lastSwitchVal = switchVal;
-	
-	if (startupCounter) startupCounter--;
 }
 
 ComputerCard::HardwareVersion ComputerCard::ProbeHardwareVersion()
@@ -655,6 +616,8 @@ ComputerCard::ComputerCard()
 	adc_run(false);
 	adc_select_input(0);
 
+	sleep_ms(50);
+	
 
 	useNormProbe = false;
 	for (int i=0; i<6; i++)
@@ -906,7 +869,7 @@ void ComputerCard::CalcCalCoeffs(int channel)
 
 	for (int i = 0; i < N; i++)
 	{
-		float v = calibrationTable[channel][i].voltage * 0.1f;
+		float v = calibrationTable[channel][i].voltage * 0.1;
 		float dac = calibrationTable[channel][i].dacSetting;
 		sumV += v;
 		sumDAC += dac;
@@ -925,8 +888,8 @@ void ComputerCard::CalcCalCoeffs(int channel)
 	}
 	calCoeffs[channel].b = (sumDAC - calCoeffs[channel].m * sumV) / N;
 
-	calCoeffs[channel].mi = int32_t(calCoeffs[channel].m * 1.333333333333333f + 0.5f);
-	calCoeffs[channel].bi = int32_t(calCoeffs[channel].b + 0.5f);
+	calCoeffs[channel].mi = (calCoeffs[channel].m * 1.333333333333333f + 0.5f);
+	calCoeffs[channel].bi = calCoeffs[channel].b + 0.5f;
 }
 
 

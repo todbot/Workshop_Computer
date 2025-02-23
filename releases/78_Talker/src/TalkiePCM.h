@@ -15,7 +15,7 @@
 #endif
 #include "Vocab_Special.h"
 #include "Vocab_US_Large.h"
-#include "Vocab_Toms_Diner.h"
+//#include "Vocab_Toms_Diner.h"
 
 #define CHIRP_SIZE 41
 #define FS 8000  // Speech engine sample rate
