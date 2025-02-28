@@ -141,6 +141,177 @@ void loop() {
 - Sketch -> Upload to build and upload the sketch. 
 - You can also create a .uf2 file with Sketch -> Export Compiled Binary. Your sketch directory should contain a build/rp2040.rp2040.rpipico directory (or similar) with a .uf2 file. Copy this file to your Computer.
 
+# [Reference](#reference)
+
+The following is a list of public and protected methods of the `ComputerCard` class. 
+
+## Public methods
+
+- `void Run()`
+
+   Starts processing of user interface and jacks. Calls `ProcessSample` callback at 48kHz. This method blocks, and in most cases will never return, though calling `Abort()` within ProcessSample will cause it to return.
+   
+- `void EnableNormalisationProbe()`
+ 
+   Call before `Run` to enable detection of connected input jacks.
+   
+
+## Protected methods
+
+- `void ProcessSample()`
+ 
+   Pure virtual processing callback, overridden by all user-written classes that inherit from `ComputerCard`. Called at 48kHz once the `Run` method has been called to start processing.
+   
+   
+The following protected methods are designed to be run within the overridden `ProcessSample` callback method, to access the hardware of the Computer. These functions are quick to run, and most are designated `__not_in_flash_func` to ensure that they run with low latency from RAM.
+
+### Knobs and switches
+- `int32_t KnobVal(Knob ind)`
+
+   Returns value of the `Knob` specified. Output value is 12-bit integer in the range 0–4095, increasing clockwise. In practice the end of knob travel will likely not quite reach these limits (14–4095 is typical). Knob inputs have some smoothing applied, but a knob left untouched may well jitter between two (or perhaps more) adjacent values.
+ 
+- `Switch SwitchVal()`
+
+   Reads the current value of the switch.
+   
+- `bool SwitchChanged()`
+
+  Returns `true` if the switch value has changed since the last sample.
+
+### Jack outputs
+In all jack input and output methods with a parameter `int i`, jack 1 (on the left) is set when `i` has the value `0`, and jack 2 (on the right) is set when `i` has the value `1`.
+
+- `void AudioOut(int i, int16_t val)`
+  
+  `void AudioOut1(int16_t val)`
+  
+  `void AudioOut2(int16_t val)`
+
+  Set the value of an audio output jack. Accepts signed 12-bit values, −2048 to 2047, corresponding to roughly −6V (value −2048) to +6V (value 2047). Values outside this will be clipped.
+  
+  The latest `value` specified by the `AudioOut` methods is sent to the audio output jacks *after* the `ProcessSample` function has finished executing.
+ 
+- `void CVOut(int i, int16_t val)`
+ 
+  `void CVOut1(int16_t val)`
+  
+  `void CVOut2(int16_t val)`
+
+  Set the value of an CV output jack. Accepts signed 12-bit values, −2048 to 2047. The range of voltages output is approximately −6V (value −2048) to +6V (value 2047), and is uncalibrated.
+  
+  Unlike the audio outputs, the `CVOut` functions change the CV output immediately, so it is recommended that the value of each CV output is set only once per `ProcessSample` call.
+  
+- `void CVOutMIDINote(int i, uint8_t noteNum)`
+
+  `void CVOut1MIDINote(uint8_t noteNum)`
+  
+  `CVOut2MIDINote(uint8_t noteNum)`
+  
+  Set the value of an CV output jack. Accepts a 12-bit MIDI note number 0–127. If the calibration data has been saved, this will be used to produce calibrated output voltages. The precision of the voltage output is roughly 5.9mV (7 cents at 1 volt per octave).
+  
+- `void PulseOut(int i, bool val)`
+
+  `void PulseOut1(bool val)`
+
+  `void PulseOut2(bool val)`
+  
+  
+  Set the value of a pulse output jack. Accepts a boolean, producing roughly 5V output for `true` and 0V for `false`.  
+  
+  The `PulseOut` functions change the pulse output immediately, so to avoid the possibility of very short pulses, it is recommended that the value of each Pulse output is set only once per `ProcessSample` call.
+  
+### Jack inputs
+- `int16_t AudioIn(int i)`
+
+   `int16_t AudioIn1()`
+   
+   `int16_t AudioIn2()`
+   
+   Return a signed 12-bit value (−2048 to 2047) corresponding to the `i`th audio input voltage.
+   Audio inputs are sampled at 96kHz and two adjacent samples averaged to produce the value returned by these methods.
+
+- `int16_t CVIn(int i)`
+ 
+   `int16_t CVIn1()`
+   
+   `int16_t CVIn2()`
+   
+   Return a signed 12-bit value (−2048 to 2047) corresponding to the `i`th CV input voltage.
+   CV inputs are sampled at 24kHz and a digital low pass filter is applied.
+
+- `bool PulseIn(int i)`
+  
+  `bool PulseIn1()`
+  
+  `bool PulseIn2()`
+  
+  Returns the state (`true` is high, `false` is low) of the pulse input jacks.
+  
+  
+- `bool PulseInRisingEdge(int i)`
+  
+  `bool PulseIn1RisingEdge()`
+  
+  `bool PulseIn2RisingEdge()`
+  
+  Returns `true` if the the state of the input jack is high this sample, but was low in the previous sample.
+   
+  
+  
+- `bool PulseInFallingEdge(int i)`
+  
+  `bool PulseIn1FallingEdge()`
+  
+  `bool PulseIn2FallingEdge()`
+  
+  Returns `true` if the the state of the input jack is high this sample, but was low in the previous sample.
+  
+
+- `bool Connected(Input i)`
+
+  `bool Disconnected(Input i)`
+  
+  Return `true` if a jack is (`Connected`) or is not (`Disconnected`) plugged into the input jack identified by `i`.
+  This function requires `EnableNormalisationProbe()` to be called on the `ComputerCard` class, prior to `Run()`, otherwise jacks are always regarded as disconnected.
+
+### LEDs
+For all LED functions, the `index` parameter takes a value 0–5 and identifies the LED, as in the following diagram of the bottom-left corner of the Workshop System:
+```
+|
+| 0 1
+| 2 3
+| 4 5
+|______
+```
+
+- `void LedBrightness(uint32_t index, uint16_t value)`
+ 
+  Set the brightness of the LED identified by `index`. The brightness `value` ranges from 0 (off) to 4095 (full brightness).
+  
+- `void LedOn(uint32_t index, bool value = true)`
+  
+  Turn the LED identified by `index` on (or, with the `value` parameter set to `false`) off.
+  
+- `void LedOff(uint32_t index)`
+
+  Turn the LED identified by `index` off.
+  
+  
+### Misc
+
+- `HardwareVersion GetHardwareVersion()`
+   
+   Returns the hardware revision of the Workshop System Computer that the code is running on.
+   
+- `uint64_t UniqueCardID()`
+
+   Returns a 64-bit integer unique to the program card.
+   
+- `void Abort()`
+
+   When called from `ProcessSample`, stops the processing started when `Run()` was called, and returns from the (otherwise blocking) `Run` method. This allows `Run` to be called again, potentially on a different `ComputerCard` class.
+   
+
 
 # [Programming for ComputerCard](#programming)
 
@@ -197,7 +368,7 @@ $$ \mbox{out} = (1-k)\\, \mbox{in}_1 + k\\, \mbox{in}_2.$$
 
 [^2]: Ideally, for audio signals, we'd use an energy-preserving crossfade rather than this linear one.
 
-In ComputerCard, the knobs return positive 12-bit values 0-4095, and we instead calculate: 
+In ComputerCard, the knobs return positive 12-bit values 0–4095 (though the end of knob travel may not reach either 0 or 4095), and we instead calculate: 
 ```c++
 int32_t k = KnobVal(Knob::Main);
 int32_t mix = (AudioIn1()*(4095-k) + AudioIn2()*(k)) >> 12;
@@ -208,7 +379,7 @@ AudioOut2(mix);
 
 Even though `k` is non-negative, we use an signed `int32_t` type (not `uint32_t`) because operations involving both signed and unsigned integers will often result in the signed type being converted to unsigned, which is not desired here. It's easiest just to keep everything as `int32_t`.
 
-The choice of `4095 - k` not `4096 - k` means that this crossfade perfectly isolates each of the two inputs at the ends of knob travel, at the expense of a very slight decline ($4095/4096$) in amplitude.
+The choice of `4095 - k` not `4096 - k` means that this crossfade perfectly isolates each of the two inputs at the ends of the range 0–4095, at the expense of a very slight decline ($4095/4096$) in amplitude. 
 
 Let's again examine the possibility of overflow. The multiply operations here calculate the product of signed 12-bit and unsigned 12-bit numbers, resulting in a signed 24-bit number. We then add two of these, which would in general produce up to a signed 25-bit number, but here because of the `k` and `4095-k` multiplicands, the sum is in fact signed 24-bit. This is well within the signed 32-bit range of the integer type, so there is no risk of overflow during the evaluation of the expression. Shifting right by 12 bits produces a signed 12-bit result (-2048 to 2047) which will not wrap in the `AudioOut` functions.
 
@@ -283,3 +454,4 @@ For USB processing, the TinyUSB function `tud_task` may take longer than one sam
 
 ### 4. Putting code in RAM
 To force a function into RAM, rather than flash, surround the name in function definition by  [__not_in_flash_func()](https://www.raspberrypi.com/documentation/pico-sdk/runtime.html#group_pico_platform_1gad9ab05c9a8f0ab455a5e11773d610787). The `ComputerCard.h` file has various examples of this. 
+
