@@ -25,6 +25,9 @@ See examples/ directory
 #define CV_OUT_1 23
 #define CV_OUT_2 22
 
+// USB host status pin
+#define USB_HOST_STATUS 20
+
 class ComputerCard
 {
 	constexpr static int numLeds = 6;
@@ -38,7 +41,7 @@ public:
 	/// Input jack socket, used by Connected and Disconnected
 	enum Input {Audio1, Audio2, CV1, CV2, Pulse1, Pulse2};
 	/// Hardware version
-	enum HardwareVersion {Proto1=0x2a, Proto2_Rev1=0x30, Unknown=0xFF};
+	enum HardwareVersion {Proto1=0x2a, Proto2_Rev1=0x30, Rev1_1=0x0C, Unknown=0xFF};
 	
 	ComputerCard();
 
@@ -55,7 +58,8 @@ public:
 
 	/// Use before Run() to enable Connected/Disconnected detection
 	void EnableNormalisationProbe() {useNormProbe = true;}
-	
+
+protected:
 	/// Callback, called once per sample at 48kHz
 	virtual void ProcessSample() = 0;
 
@@ -213,7 +217,7 @@ public:
 		pwm_set_gpio_level(leds[index], 0);
 	}
 
-	
+	bool GetUSBStatus() {return gpio_get(USB_HOST_STATUS);}
 
 	/// Return hardware version
 	HardwareVersion GetHardwareVersion() {return hw;}
@@ -291,6 +295,8 @@ private:
 	// Convert signed int16 value into data string for DAC output
 	uint16_t __not_in_flash_func(dacval)(int16_t value, uint16_t dacChannel)
 	{
+		if (value<-2048) value = -2048;
+		if (value > 2047) value = 2047;
 		return (dacChannel | 0x3000) | (((uint16_t)((value & 0x0FFF) + 0x800)) & 0x0FFF);
 	}
 	uint32_t next_norm_probe();
@@ -331,7 +337,6 @@ private:
 #define AUDIO_R_IN_1 26
 #define MUX_IO_1 28
 #define MUX_IO_2 29
-
 
 #define DAC_CHANNEL_A 0x0000
 #define DAC_CHANNEL_B 0x8000
@@ -622,25 +627,37 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 
 ComputerCard::HardwareVersion ComputerCard::ProbeHardwareVersion()
 {
+	// Enable pull-downs, and measure
 	gpio_set_pulls(BOARD_ID_0, false, true);
 	gpio_set_pulls(BOARD_ID_1, false, true);
 	gpio_set_pulls(BOARD_ID_2, false, true);
 	sleep_us(1);
-	uint8_t pd = gpio_get(BOARD_ID_0) | (gpio_get(BOARD_ID_0) << 2) | (gpio_get(BOARD_ID_2) << 4);
+
+	// Pull-down state in bits 0, 2, 4
+	uint8_t pd = gpio_get(BOARD_ID_0) | (gpio_get(BOARD_ID_1) << 2) | (gpio_get(BOARD_ID_2) << 4);
+	
+	// Enable pull-ups, and measure
 	gpio_set_pulls(BOARD_ID_0, true, false);
 	gpio_set_pulls(BOARD_ID_1, true, false);
 	gpio_set_pulls(BOARD_ID_2, true, false);
 	sleep_us(1);
-	uint8_t pu = (gpio_get(BOARD_ID_0) << 1) | (gpio_get(BOARD_ID_0) << 3) | (gpio_get(BOARD_ID_2) << 5);
+
+	// Pull-up state in bits 1, 3, 5
+	uint8_t pu = (gpio_get(BOARD_ID_0) << 1) | (gpio_get(BOARD_ID_1) << 3) | (gpio_get(BOARD_ID_2) << 5);
+
+	// Combine to give 6-bit ID
+	uint8_t id = pd | pu;
+
+	// Set pull-downs
 	gpio_set_pulls(BOARD_ID_0, false, true);
 	gpio_set_pulls(BOARD_ID_1, false, true);
 	gpio_set_pulls(BOARD_ID_2, false, true);
-	uint8_t id = pd | pu;
 
 	switch (id)
 	{
 	case HardwareVersion::Proto1:
 	case HardwareVersion::Proto2_Rev1:
+	case HardwareVersion::Rev1_1:
 		return static_cast<ComputerCard::HardwareVersion>(id);
 	default:
 		return HardwareVersion::Unknown;
@@ -685,11 +702,19 @@ ComputerCard::ComputerCard()
 
 	
 	// Board version ID pins
+	gpio_init(BOARD_ID_0);
+	gpio_init(BOARD_ID_1);
+	gpio_init(BOARD_ID_2);
 	gpio_set_dir(BOARD_ID_0, GPIO_IN);
 	gpio_set_dir(BOARD_ID_1, GPIO_IN);
 	gpio_set_dir(BOARD_ID_2, GPIO_IN);
 	hw = ProbeHardwareVersion();
 	
+	// USB host status pin
+	gpio_init(USB_HOST_STATUS);
+	gpio_pull_down(USB_HOST_STATUS); 
+	gpio_set_dir(USB_HOST_STATUS, GPIO_IN);
+
 	// Normalisation probe pin
 	gpio_init(NORMALISATION_PROBE);
 	gpio_set_dir(NORMALISATION_PROBE, GPIO_OUT);
