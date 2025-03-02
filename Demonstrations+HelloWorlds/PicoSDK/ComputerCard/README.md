@@ -335,7 +335,7 @@ For all LED functions, the `index` parameter takes a value 0–5 and identifies 
 
 - `USBPowerState_t USBPowerState()`
    
-   Returns the state of hardware revision of the Workshop System Computer that the code is running on.
+   Returns the mode of the USB port on the Computer.
     | `USBPowerState_t` | State |
     |---------------------|---------|
     | `DFP`            | Downstream facing port (MTM Computer acting as USB host)|
