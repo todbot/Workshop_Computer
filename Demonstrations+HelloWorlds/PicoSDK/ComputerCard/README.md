@@ -259,7 +259,7 @@ In all jack input and output methods with a parameter `int i`, jack 1 (on the le
   
   `bool PulseIn2()`
   
-  Returns the state (`true` is high, `false` is low) of the pulse input jacks.
+  Return the state (`true` is high, `false` is low) of the pulse input jacks.
   
   
 - `bool PulseInRisingEdge(int i)`
@@ -268,7 +268,7 @@ In all jack input and output methods with a parameter `int i`, jack 1 (on the le
   
   `bool PulseIn2RisingEdge()`
   
-  Returns `true` if the the state of the input jack is high this sample, but was low in the previous sample.
+  Return `true` if the the state of the input jack is high this sample, but was low in the previous sample.
    
   
   
@@ -278,7 +278,7 @@ In all jack input and output methods with a parameter `int i`, jack 1 (on the le
   
   `bool PulseIn2FallingEdge()`
   
-  Returns `true` if the the state of the input jack is high this sample, but was low in the previous sample.
+  Return `true` if the the state of the input jack is high this sample, but was low in the previous sample.
   
 
 - `bool Connected(Input i)`
@@ -286,7 +286,16 @@ In all jack input and output methods with a parameter `int i`, jack 1 (on the le
   `bool Disconnected(Input i)`
   
   Return `true` if a jack is (`Connected`) or is not (`Disconnected`) plugged into the input jack identified by `i`.
-  This function requires `EnableNormalisationProbe()` to be called on the `ComputerCard` class, prior to `Run()`, otherwise jacks are always regarded as disconnected.
+  This function requires `EnableNormalisationProbe()` to be called on the `ComputerCard` class, prior to `Run()`, otherwise jacks are always regarded as disconnected. Values of the `Input` enum are as follows:
+  
+  | `Input` |
+  |---------|
+  | `Audio1`  |
+  | `Audio2`  |
+  | `CV1`  |
+  | `CV2`  |
+  | `Pulse1`  |
+  | `Pulse2`  |
 
 ### LEDs
 For all LED functions, the `index` parameter takes a value 0–5 and identifies the LED, as in the following diagram of the bottom-left corner of the Workshop System:
@@ -304,7 +313,7 @@ For all LED functions, the `index` parameter takes a value 0–5 and identifies 
   
 - `void LedOn(uint32_t index, bool value = true)`
   
-  Turn the LED identified by `index` on (or, with the `value` parameter set to `false`) off.
+  Turn the LED identified by `index` on or (with the `value` parameter set to `false`) off.
   
 - `void LedOff(uint32_t index)`
 
@@ -321,6 +330,7 @@ For all LED functions, the `index` parameter takes a value 0–5 and identifies 
     | `Proto1`            | 2024 Dyski prototypes and Proto 1.2 (May 2024 devkits)|
     | `Proto2_Rev1`       | Proto 2.0.0/2.0.1/2.0.2 and December 2024 production |
     | `Rev1_1`            | Rev 1.1, January 2025 | 
+
    ComputerCard currently does not appear to run on systems without an EEPROM (i.e. any prior to Proto 2.0.2).
 
 - `USBPowerState_t USBPowerState()`
