@@ -62,14 +62,17 @@ More generally, the process is:
 ComputerCard contains several examples in the `examples/` directory.
 For beginners just starting with ComputerCard, the first example to look at is `passthrough` to introduce the basic functions, followed by `sample_and_hold` for typical usage of these in a 'real' card.
 
-- `midi_device` — example of USB MIDI being used alongside ComputerCard. Sends Computer knob values to the USB host as CC messages.
+- `midi_device` — example of USB MIDI being used alongside ComputerCard. The MTM Computer acts as a USB device, to allow it to be connected to a (laptop/desktop) computer. Sends Computer knob values to the USB host as CC messages.
+- `midi_host` — example of USB MIDI being used alongside ComputerCard. The MTM Computer acts as a USB host, to allow it to be connected to USB MIDI devices such as keyboards/controllers/etc.
+- `midi_device_host` — example of USB MIDI being used alongside ComputerCard. At startup, the MTM computer determines the type of USB port it is connected to, and becomes either a host or device as appropriate.
 - `normalisation_probe` — minimal example of patch cable detection. LEDs are lit when corresponding sockets have a jack plugged in.
 - `passthrough` — simple demonstration of using the jacks, knobs, switch and LEDs.
 - `sample_and_hold` — dual sample and hold, demonstrating jacks, normalisation probe and pseudo-random numbers
 - `second_core` — demonstration of using the second RP2040 core for more CPU-intensive processing than is possible at the 48kHz sample rate
 - `sine_wave_float` — 440Hz sine wave generator, using floating-point numbers
-- `sine_wave_lookup` — 440Hz sine wave generator, demonstrating scanning and linear interpolation of a lookup table using integer arithmetic
-    
+- `sine_wave_lookup` — 440Hz sine wave generator, demonstrating scanning and linear interpolation of a lookup table using integer arithmetic 
+- `usb_detect` — Displays on the LEDs whether the USB port on the MTM Computer is acting as a 'downstream facing port' (MTM Computer is USB Host), or 'upstream facing port' (MTM Computer is USB device).
+
 ### Notes
 - Make sure execution of `ComputerCard::ProcessSample` always runs quickly enough that it has returned before the next execution begins (1/48kHz = ~20μs). (See the [guidance below](#programming) on achieving this)
 - It is anticipated that only one instance of a ComputerCard will be created.
@@ -170,13 +173,24 @@ The following protected methods are designed to be run within the overridden `Pr
 
    Returns value of the `Knob` specified. Output value is 12-bit integer in the range 0–4095, increasing clockwise. In practice the end of knob travel will likely not quite reach these limits (14–4095 is typical). Knob inputs have some smoothing applied, but a knob left untouched may well jitter between two (or perhaps more) adjacent values.
  
+    | `Knob` | Knob |
+    |---------------------|---------|
+    | `Main`            | The big knob|
+    | `X`       | Knob X |
+    | `Y`            | Knob Y | 
+
 - `Switch SwitchVal()`
 
-   Reads the current value of the switch.
+   Reads the current value of switch Z.
+    | `Switch` | Position |
+    |---------------------|---------|
+    | `Up`            | Up|
+    | `Middle`       | Middle |
+    | `Down`            | Down (momentary) | 
    
 - `bool SwitchChanged()`
 
-  Returns `true` if the switch value has changed since the last sample.
+  Returns `true` if the switch value has changed since the last sample. Useful for taking action only when a switch changes, rather than every sample (e.g. `if (SwitchChanged() && SwitchVal() == Down) {...}`). 
 
 ### Jack outputs
 In all jack input and output methods with a parameter `int i`, jack 1 (on the left) is set when `i` has the value `0`, and jack 2 (on the right) is set when `i` has the value `1`.
@@ -299,17 +313,38 @@ For all LED functions, the `index` parameter takes a value 0–5 and identifies 
   
 ### Misc
 
-- `HardwareVersion GetHardwareVersion()`
+- `HardwareVersion_t HardwareVersion()`
    
    Returns the hardware revision of the Workshop System Computer that the code is running on.
+    | `HardwareVersion_t` | Version |
+    |---------------------|---------|
+    | `Proto1`            | 2024 Dyski prototypes and Proto 1.2 (May 2024 devkits)|
+    | `Proto2_Rev1`       | Proto 2.0.0/2.0.1/2.0.2 and December 2024 production |
+    | `Rev1_1`            | Rev 1.1, January 2025 | 
+   ComputerCard currently does not appear to run on systems without an EEPROM (i.e. any prior to Proto 2.0.2).
+
+- `USBPowerState_t USBPowerState()`
    
+   Returns the state of hardware revision of the Workshop System Computer that the code is running on.
+    | `USBPowerState_t` | State |
+    |---------------------|---------|
+    | `DFP`            | Downstream facing port (MTM Computer acting as USB host)|
+    | `UFP`       | Upstream facing port (MTM Computer acting as USB device), or, USB not connected |
+    | `Unsupported`            | Returned on hardware prior to `Rev1_1`| 
+
 - `uint64_t UniqueCardID()`
 
    Returns a 64-bit integer unique to the program card.
-   
+   This is the unique ID returned by the flash chip, with a scrambling function applied to ensure that all bits in the returned integer are unpredictable, even if many bits in the original unique ID are common between flash chips.
+
 - `void Abort()`
 
    When called from `ProcessSample`, stops the processing started when `Run()` was called, and returns from the (otherwise blocking) `Run` method. This allows `Run` to be called again, potentially on a different `ComputerCard` class.
+   
+
+- `static ComputerCard* ThisPtr()`
+
+   Static member function that returns the `this` pointer of whichever `ComputerCard` instance last started audio processing. This is useful to allow C-style functions (in particular, callbacks) to access the active ComputerCard.
    
 
 

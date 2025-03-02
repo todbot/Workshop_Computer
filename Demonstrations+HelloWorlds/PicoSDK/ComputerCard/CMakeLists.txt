@@ -43,3 +43,17 @@ add_example(sine_wave_lookup)
 add_example(sine_wave_float)
 
 
+add_example(usb_detect)
+
+add_example(midi_host)
+target_sources(midi_host PUBLIC ${CMAKE_CURRENT_LIST_DIR}/examples/midi_host/usb_midi_host.c  ${CMAKE_CURRENT_LIST_DIR}/examples/midi_host/usb_midi_host_app_driver.c)
+target_link_libraries(midi_host pico_multicore tinyusb_host tinyusb_board  )
+
+
+add_example(midi_device_host)
+target_link_libraries(midi_device_host pico_multicore tinyusb_host tinyusb_board  tinyusb_device  )
+target_sources(midi_device_host PUBLIC
+  ${CMAKE_CURRENT_LIST_DIR}/examples/midi_device_host/usb_midi_host.c
+  ${CMAKE_CURRENT_LIST_DIR}/examples/midi_device_host/usb_midi_host_app_driver.c
+  ${CMAKE_CURRENT_LIST_DIR}/examples/midi_device_host/usb_descriptors.c
+)
