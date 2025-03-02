@@ -41,7 +41,9 @@ public:
 	/// Input jack socket, used by Connected and Disconnected
 	enum Input {Audio1, Audio2, CV1, CV2, Pulse1, Pulse2};
 	/// Hardware version
-	enum HardwareVersion {Proto1=0x2a, Proto2_Rev1=0x30, Rev1_1=0x0C, Unknown=0xFF};
+	enum HardwareVersion_t {Proto1=0x2a, Proto2_Rev1=0x30, Rev1_1=0x0C, Unknown=0xFF};
+	/// USB Power state
+	enum USBPowerState_t {DFP, UFP, Unsupported};
 	
 	ComputerCard();
 
@@ -217,10 +219,19 @@ protected:
 		pwm_set_gpio_level(leds[index], 0);
 	}
 
-	bool GetUSBStatus() {return gpio_get(USB_HOST_STATUS);}
+	// Return power state of USB port
+	USBPowerState_t USBPowerState()
+	{
+		if (HardwareVersion() != Rev1_1)
+			return Unsupported;
+		else if (gpio_get(USB_HOST_STATUS))
+			return UFP;
+		else
+			return DFP;
+	}
 
 	/// Return hardware version
-	HardwareVersion GetHardwareVersion() {return hw;}
+	HardwareVersion_t HardwareVersion() {return hw;}
 
 	/// Return ID number unique to flash card
 	uint64_t UniqueCardID()	{return uniqueID;}
@@ -260,8 +271,8 @@ private:
 	int ReadEEPROM();
 	uint32_t MIDIToDac(int midiNote, int channel);
 	
-	HardwareVersion hw;
-	HardwareVersion ProbeHardwareVersion();
+	HardwareVersion_t hw;
+	HardwareVersion_t ProbeHardwareVersion();
 	
 	int16_t dacOut[2];
 	
@@ -625,7 +636,7 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 	if (startupCounter) startupCounter--;
 }
 
-ComputerCard::HardwareVersion ComputerCard::ProbeHardwareVersion()
+ComputerCard::HardwareVersion_t ComputerCard::ProbeHardwareVersion()
 {
 	// Enable pull-downs, and measure
 	gpio_set_pulls(BOARD_ID_0, false, true);
@@ -655,12 +666,12 @@ ComputerCard::HardwareVersion ComputerCard::ProbeHardwareVersion()
 
 	switch (id)
 	{
-	case HardwareVersion::Proto1:
-	case HardwareVersion::Proto2_Rev1:
-	case HardwareVersion::Rev1_1:
-		return static_cast<ComputerCard::HardwareVersion>(id);
+	case Proto1:
+	case Proto2_Rev1:
+	case Rev1_1:
+		return static_cast<ComputerCard::HardwareVersion_t>(id);
 	default:
-		return HardwareVersion::Unknown;
+		return Unknown;
 	}
 }
 
@@ -712,8 +723,7 @@ ComputerCard::ComputerCard()
 	
 	// USB host status pin
 	gpio_init(USB_HOST_STATUS);
-	gpio_pull_down(USB_HOST_STATUS); 
-	gpio_set_dir(USB_HOST_STATUS, GPIO_IN);
+	gpio_disable_pulls(USB_HOST_STATUS);
 
 	// Normalisation probe pin
 	gpio_init(NORMALISATION_PROBE);
