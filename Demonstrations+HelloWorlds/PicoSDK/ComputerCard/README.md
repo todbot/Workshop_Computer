@@ -71,7 +71,7 @@ For beginners just starting with ComputerCard, the first example to look at is `
 - `second_core` — demonstration of using the second RP2040 core for more CPU-intensive processing than is possible at the 48kHz sample rate
 - `sine_wave_float` — 440Hz sine wave generator, using floating-point numbers
 - `sine_wave_lookup` — 440Hz sine wave generator, demonstrating scanning and linear interpolation of a lookup table using integer arithmetic 
-- `usb_detect` — Displays on the LEDs whether the USB port on the MTM Computer is acting as a 'downstream facing port' (MTM Computer is USB Host), or 'upstream facing port' (MTM Computer is USB device).
+- `usb_detect` — Displays on the LEDs whether the USB port on the MTM Computer is acting as a 'downstream facing port' (MTM Computer is USB Host), or 'upstream facing port' (MTM Computer is USB device). Requires Computer 1.1.0 Hardware. 
 
 ### Notes
 - Make sure execution of `ComputerCard::ProcessSample` always runs quickly enough that it has returned before the next execution begins (1/48kHz = ~20μs). (See the [guidance below](#programming) on achieving this)
