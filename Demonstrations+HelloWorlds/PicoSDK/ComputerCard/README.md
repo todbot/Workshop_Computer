@@ -531,7 +531,7 @@ Three further comments:
 - On the RP2040, the `>>` operation on signed types rounds to negative infinity. Sometimes it may be worth adding a constant into the filter expression to alter this behaviour to round-to-nearest.  
 - The roundoff error on a low-pass filter such as this produces a very primative hysteresis-like effect, which may occasionally be useful. This is used in ComputerCard to reduce noise/jitter in knob values.
 
-### 2. Lengthy calculations
+## 2. Lengthy calculations
 Options for dealing with calculations that exceed the available ~20μs per sample are:
 - optimise these calculations, for example using lookup tables [^3]
 - offload long calculations onto the second RP2040 core.
@@ -544,6 +544,6 @@ For USB processing, the TinyUSB function `tud_task` may take longer than one sam
 
 [^3]: While floating point calculations are typically too slow to perform every sample, it's convenient to have them available for calculating lookup tables when the card first starts. Lookup tables can of course be calculated on a much more powerful computer and hard-coded as constant arrays.
 
-### 4. Putting code in RAM
+## 3. Putting code in RAM
 To force a function into RAM, rather than flash, surround the name in function definition by  [__not_in_flash_func()](https://www.raspberrypi.com/documentation/pico-sdk/runtime.html#group_pico_platform_1gad9ab05c9a8f0ab455a5e11773d610787). The `ComputerCard.h` file has various examples of this. 
 
