@@ -64,7 +64,7 @@ For beginners just starting with ComputerCard, the first example to look at is `
 
 - `midi_device` — example of USB MIDI being used alongside ComputerCard. The MTM Computer acts as a USB device, to allow it to be connected to a (laptop/desktop) computer. Sends Computer knob values to the USB host as CC messages.
 - `midi_host` — example of USB MIDI being used alongside ComputerCard. The MTM Computer acts as a USB host, to allow it to be connected to USB MIDI devices such as keyboards/controllers/etc.
-- `midi_device_host` — example of USB MIDI being used alongside ComputerCard. At startup, the MTM computer determines the type of USB port it is connected to, and becomes either a host or device as appropriate.
+- `midi_device_host` — example of USB MIDI being used alongside ComputerCard. At startup, the MTM computer determines the type of USB port it is connected to, and becomes either a host or device as appropriate. Requires Computer 1.1.0 Hardware. 
 - `normalisation_probe` — minimal example of patch cable detection. LEDs are lit when corresponding sockets have a jack plugged in.
 - `passthrough` — simple demonstration of using the jacks, knobs, switch and LEDs.
 - `sample_and_hold` — dual sample and hold, demonstrating jacks, normalisation probe and pseudo-random numbers
@@ -143,6 +143,54 @@ void loop() {
 - Note: Make sure Tools -> USB Stack is set to "No USB", as this interferes with the normalization probing.
 - Sketch -> Upload to build and upload the sketch. 
 - You can also create a .uf2 file with Sketch -> Export Compiled Binary. Your sketch directory should contain a build/rp2040.rp2040.rpipico directory (or similar) with a .uf2 file. Copy this file to your Computer.
+
+
+## Changelog
+
+Early versions do not include a version number in the source code, but can be identified by the MD5 checksum of the `ComputerCard.h` file.
+
+| Version | Date |`ComputerCard.h` MD5 |
+|---------|------|----------------------|
+| 0.1.4   |  2024/11/30 | 37e9eba18047a4bc5999914c03256275 |
+| 0.2.0   | 2024/12/22 | 79c2dddec3cb576ea102ef064996acb2 |
+| 0.2.1   | 2024/12/29 | b5639163decb8d980935aa677d820231 |
+| 0.2.2   | 2025/02/04 | 2602203ab56f56d9f6222eea839b8f5b |
+| 0.2.3   | 2025/02/08 | 6dee0f6690ea3e6b9cb09c2814fd9cc5 |
+| 0.2.4   | 2025/02/28 | 2247e04b8719cdc6df8c625057e8cad1 |
+| 0.2.5   | 2025/03/02 | b76132bc5126e2cb2ee14617f72b7f64 |
+
+#### 0.1.4
+Transfer of code to public Workshop_Computer repository.
+
+#### 0.2.0
+Lots of fixes found during Utility Pair development:
+
+- Fixed incorrect sign of both audio input and output.
+- Fixed incorrect order of audio input jacks
+- Reduced crosstalk of knobs by using different ADC sample
+- Added (not well tested) compensation of ADC DNL errors.
+- Removed `_calibrated` form of CV output functions
+- Added input/output functions with jack number as parameter
+
+#### 0.2.1
+- Removed some residual double-precision calculations in calibration routine
+
+#### 0.2.2
+- Added `Abort` function
+- removed unnecessary 50ms startup delay
+
+#### 0.2.3
+- Added `SwitchChanged` function
+
+#### 0.2.4
+- Added clipping of signed 16-bit audio outputs to -2048-2047 range
+- Detection of Computer v1.1 hardware revision
+
+#### 0.2.5
+- Renamed `GetHardwareVersion()` method to `HardwareVersion()`
+- Renamed `HardwareVersion` enum to `HardwareVersion_t`
+- Added `USBPowerState()` function and `USBPowerState_t` enum
+
 
 # [Reference](#reference)
 
