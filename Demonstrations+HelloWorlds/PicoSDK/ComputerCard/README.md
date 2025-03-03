@@ -3,19 +3,18 @@ ComputerCard is a  [MIT licensed](https://opensource.org/license/mit) header-onl
 manages the hardware aspects of the [Music Thing Modular Workshop
 System Computer](https://www.musicthing.co.uk/workshopsystem/).
 
-It aims to present a very simple C++ framework for card programmers to use the jacks, knobs, switch and LEDs, with a callback at a fixed 48kHz audio sample rate.
+It aims to present a very simple C++ framework for card programmers to use all the hardware features of the Computer, within a callback at a fixed 48kHz audio sample rate.
 
 ComputerCard was designed to work with the [RPi Pico SDK](https://github.com/raspberrypi/pico-sdk) but also works with the Arduino environment using the earlephilhower RP2040 board [as described below](#arduino-ide)
 
 
 Behind the scenes, the ComputerCard class:
 - Manages the ADC and external multiplexer to collect analogue samples from audio inputs, CV inputs, knobs and switch.
-- Applies smoothing, some simple hysteresis, and range extension to knobs and CV, to provide relatively low-noise values that span the whole range (-2048 to 2047 for jacks, 0 to 4095 for knobs). Knob/CV values are updated every audio frame.
-- If enabled, determines whether jacks are connected to the six input sockets by driving the 'normalisation probe' pin and detecting its signal on the inputs.
+- Applies smoothing and some simple hysteresis to knobs and CV, to provide relatively low-noise values updated every audio frame.
+- Signals the external DAC to drive audio outputs.
 - Manages PWM signals for CV output and brightness control of the six LEDs.
-- Sends audio outputs to external DAC.
+- If enabled, determines whether jacks are connected to the six input sockets by driving the 'normalisation probe' pin and detecting its signal on the inputs.
 - Reads EEPROM calibration, if set, for calibrated MIDI note CV outputs.
-
 
 ## Usage:
 Basic usage is intended to be extremely simple. For example, here is complete code for a Sample and Hold card:
@@ -75,7 +74,7 @@ For beginners just starting with ComputerCard, the first example to look at is `
 
 ### Notes
 - Make sure execution of `ComputerCard::ProcessSample` always runs quickly enough that it has returned before the next execution begins (1/48kHz = ~20μs). (See the [guidance below](#programming) on achieving this)
-- It is anticipated that only one instance of a ComputerCard will be created.
+- While multiple ComputerCard objects can be created and used sequentially, only one instance of a ComputerCard can be active (using `Run()`) at any one time.
 
 ### Limitations / potential future improvements
 - Only core 0 of the RP2040 is used
