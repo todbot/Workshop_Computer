@@ -1,5 +1,4 @@
 #include "ComputerCard.h"
-#include <algorithm>
 
 #define SHIFT_REG_SIZE 6
 #define RUNGLER_DAC_BITS 3
@@ -19,7 +18,6 @@ public:
 	WeirdingMachine()
 	{
 		// CONSTRUCTOR
-		//  Set up the shift register
 		for (int i = 0; i < SHIFT_REG_SIZE; i++)
 		{
 			bits[i] = false;
@@ -73,8 +71,15 @@ public:
 		}
 
 		//convert 3 bit outputs to 12 bit values between -2048 and 2047
-		runglerOut = (runglerOut << (12 - RUNGLER_DAC_BITS)) - 2048;
-		xorOut = (xorOut << (12 - RUNGLER_DAC_BITS)) - 2048;
+		runglerOut = (runglerOut << (12 - RUNGLER_DAC_BITS));
+		xorOut = (xorOut << (12 - RUNGLER_DAC_BITS));
+
+		//Attenuate the outputs based on the y knob
+		runglerOut = (runglerOut * KnobVal(Y)) >> 12;
+		xorOut = (xorOut * KnobVal(Y)) >> 12;
+
+		runglerOut -= 2048; // Convert to -2048 to 2047
+		xorOut -= 2048; // Convert to -2048 to 2047
 	
 
 		//Output rungler signals
