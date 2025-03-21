@@ -21,39 +21,20 @@ public:
 		for (int i = 0; i < SHIFT_REG_SIZE; i++)
 		{
 			bits[i] = true;
-			xorBits[i] = true;
 		}
 	}
 
 	virtual void ProcessSample()
 	{
 		int16_t runglerOut = 0;
-		int16_t xorOut = 0;
 
 		mainClock = PulseIn1RisingEdge();
 
-		if (Connected(Input::Pulse2))
-		{
-			xorClock = PulseIn2RisingEdge();
-		}
-		else
-		{
-			xorClock = mainClock;
-		}
+		mainKnob = KnobVal(Knob::Main);
 
-		mainKnob = KnobVal(Main);
+		vca = KnobVal(Knob::Y);
 
-		if (Connected(Input::Audio2))
-		{
-			vca = AudioIn2() + 2048;	  // Convert to 0-4095
-			vca = vca * KnobVal(Y) >> 12; // Attenuate with Y knob
-		}
-		else
-		{
-			vca = KnobVal(Y);
-		}
-
-		if (mainClock || xorClock)
+		if (mainClock)
 		{
 			if (Connected(Input::Audio1))
 			{
@@ -65,11 +46,7 @@ public:
 			}
 
 			comparator = data > mainKnob;
-		}
 
-		if (mainClock)
-		{
-			// Shift the main bits
 			rotate(bits);
 
 			if (comparator)
@@ -78,70 +55,41 @@ public:
 			}
 		}
 
-		if (xorClock)
-		{
-			// Shift the xor bits
-			rotate(xorBits);
-
-			if (comparator)
-			{
-				if (!bits[SHIFT_REG_SIZE - 1])
-				{
-					xorBits[0] = !xorBits[0]; // Toggle the first bit
-				}
-			}
-			else
-			{
-				if (bits[SHIFT_REG_SIZE - 1])
-				{
-					xorBits[0] = !xorBits[0]; // Toggle the first bit
-				}
-			}
-		}
-
 		for (int i = SHIFT_REG_SIZE - RUNGLER_DAC_BITS - 1; i < SHIFT_REG_SIZE; i++)
 		{
 			runglerOut |= (bits[i] << (i - (SHIFT_REG_SIZE - RUNGLER_DAC_BITS)));
-			xorOut |= (xorBits[i] << (i - (SHIFT_REG_SIZE - RUNGLER_DAC_BITS)));
 		}
 
-		// convert 3 bit outputs to 12 bit values between -2048 and 2047
+		// convert 3 bit output to 12 bit values between -2048 and 2047
 		runglerOut = (runglerOut << (12 - RUNGLER_DAC_BITS));
-		xorOut = (xorOut << (12 - RUNGLER_DAC_BITS));
 
-		// Attenuate the outputs based on the vca value
+		// Attenuate the output based on the vca value
 		runglerOut = (runglerOut * vca) >> 12;
-		xorOut = (xorOut * vca) >> 12;
 
 		runglerOut -= 2048; // Convert to -2048 to 2047
-		xorOut -= 2048;		// Convert to -2048 to 2047
 
-		// Output rungler signals
+		// Output rungler signal
 		AudioOut1(runglerOut);
-		AudioOut2(xorOut);
+		AudioOut2(runglerOut);
 
-		//Output CV signals
+		//TODO Output CV signals
 
 		//Output pulse signals
-		PulseOut1(bits[SHIFT_REG_SIZE - 1]);
-		PulseOut2(xorBits[SHIFT_REG_SIZE - 1]);
+		PulseOut1(bits[SHIFT_REG_SIZE - 2]);
+		PulseOut2(bits[SHIFT_REG_SIZE - 1]);
 
 		// show shiftreg state on LEDs
 		for (int i = 0; i < 6; i++)
 		{
-			bool *selectBits = (Connected(Input::Pulse2) && !Connected(Input::Pulse1)) ? xorBits : bits;
-			LedBrightness(ledMap[i], (selectBits[i] ? KnobVal(Y) : 0) * 4095 >> 12);
+			LedBrightness(i, (bits[i] ? KnobVal(Knob::Y) : 0) * 4095 >> 12);
 		}
 	}
 
 private:
 	bool bits[SHIFT_REG_SIZE];
-	bool xorBits[SHIFT_REG_SIZE];
 	bool mainClock = false;
-	bool xorClock = false;
 	int16_t mainKnob;
 	int16_t data;
-	int8_t ledMap[6] = {0, 2, 4, 1, 3, 5};
 	int16_t vca = 0;
 	bool comparator;
 
