@@ -2,6 +2,8 @@
 
 #define SHIFT_REG_SIZE 6
 #define RUNGLER_DAC_BITS 3
+#define RIGHT 1
+#define LEFT 0
 
 // 12 bit random number generator
 uint32_t __not_in_flash_func(rnd12)()
@@ -32,6 +34,15 @@ public:
 
 		mainKnob = KnobVal(Knob::Main);
 
+		if(mainKnob < 15)
+		{
+			mainKnob = 0;
+		}
+		else if (mainKnob > 4095 - 15)
+		{
+			mainKnob = 4095;
+		}
+
 		vca = KnobVal(Knob::Y);
 
 		if (mainClock)
@@ -43,15 +54,21 @@ public:
 			else
 			{
 				data = rnd12();
+				clip(data, 1, 4094);
 			}
 
 			comparator = data > mainKnob;
 
-			rotate(bits);
+			rotate(bits, RIGHT);
 
 			if (comparator)
 			{
 				bits[0] = !bits[0]; // Toggle the first bit
+			}
+			else
+			{
+				//DANGER ZOOOOONE
+				int dummy = 9;
 			}
 		}
 
@@ -93,17 +110,40 @@ private:
 	int16_t vca = 0;
 	bool comparator;
 
-	void rotate(bool *array)
+	void rotate(bool *array, bool direction)
 	{
-		// Shift the bits to the right
-		bool lastBit = array[SHIFT_REG_SIZE - 1];
-
-		for (int i = SHIFT_REG_SIZE - 1; i > 0; i--)
+		if (direction) // Rotate right
 		{
-			array[i] = array[i - 1];
+			bool lastBit = array[SHIFT_REG_SIZE - 1];
+
+			for (int i = SHIFT_REG_SIZE - 1; i > 0; i--)
+			{
+				array[i] = array[i - 1];
+			}
+			array[0] = lastBit;
 		}
-		// Set the first bit to the new value
-		array[0] = lastBit;
+		else // Rotate left
+		{
+			bool firstBit = array[0];
+
+			for (int i = 0; i < SHIFT_REG_SIZE - 1; i++)
+			{
+				array[i] = array[i + 1];
+			}
+			array[SHIFT_REG_SIZE - 1] = firstBit;
+		}
+	}
+
+	void clip(int16_t &value, int16_t min, int16_t max)
+	{
+		if (value < min)
+		{
+			value = min;
+		}
+		else if (value > max)
+		{
+			value = max;
+		}
 	}
 };
 
