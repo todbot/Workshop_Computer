@@ -2,8 +2,7 @@
 
 #define SHIFT_REG_SIZE 6
 #define RUNGLER_DAC_BITS 3
-#define RIGHT 1
-#define LEFT 0
+#define RIGHT true
 
 // 12 bit random number generator
 uint32_t __not_in_flash_func(rnd12)()
@@ -22,53 +21,77 @@ public:
 		// CONSTRUCTOR
 		for (int i = 0; i < SHIFT_REG_SIZE; i++)
 		{
-			bits[i] = true;
+			bits[i] = 1;
 		}
 	}
 
 	virtual void ProcessSample()
 	{
 		int16_t runglerOut = 0;
+		Switch sw = SwitchVal();
 
 		mainClock = PulseIn1RisingEdge();
 
-		mainKnob = KnobVal(Knob::Main);
-
-		if(mainKnob < 15)
+		if(PulseIn2RisingEdge())
 		{
-			mainKnob = 0;
+			direction = !direction; // Toggle direction on PulseIn2 rising edge
 		}
-		else if (mainKnob > 4095 - 15)
+
+		if (Connected(Input::Audio2))
 		{
-			mainKnob = 4095;
+			turingP = AudioIn2();
+		}
+		else
+		{
+			turingP = KnobVal(Knob::Main);
+		}
+
+		clip(turingP, 0, 4095);
+
+		if (turingP < 15)
+		{
+			turingP = 0;
+		}
+		else if (turingP > 4095 - 15)
+		{
+			turingP = 4095;
 		}
 
 		vca = KnobVal(Knob::Y);
+		int16_t offset = KnobVal(Knob::X);
 
 		if (mainClock)
 		{
-			if (Connected(Input::Audio1))
-			{
-				data = AudioIn1() + 2048; // Convert to 0-4095
-			}
-			else
-			{
-				data = rnd12();
-				clip(data, 1, 4094);
-			}
 
-			comparator = data > mainKnob;
+			rotate(bits, direction);
 
-			rotate(bits, RIGHT);
-
-			if (comparator)
+			if (sw == Switch::Down)
 			{
 				bits[0] = !bits[0]; // Toggle the first bit
 			}
-			else
+			else if (sw == Switch::Up)
 			{
-				//DANGER ZOOOOONE
-				int dummy = 9;
+				// LEAVE BITS UNCHANGED
+			}
+			else // sw == Switch::Middle
+			{
+				if (Connected(Input::Audio1))
+				{
+					data = AudioIn1() + 2048; // Convert to 0-4095
+				}
+				else
+				{
+					data = rnd12();
+				}
+
+				clip(data, 1, 4094);
+
+				comparator = data > turingP;
+
+				if (comparator)
+				{
+					bits[0] = !bits[0]; // Toggle the first bit
+				}
 			}
 		}
 
@@ -81,34 +104,40 @@ public:
 		runglerOut = (runglerOut << (12 - RUNGLER_DAC_BITS));
 
 		// Attenuate the output based on the vca value
-		runglerOut = (runglerOut * vca) >> 12;
+		runglerOut = (runglerOut * vca) >> 13;
 
+		// Add offset to the output
+		runglerOut += offset;
 		runglerOut -= 2048; // Convert to -2048 to 2047
+		runglerOut *= -1; // Invert the signal
+		clip(runglerOut, -2048, 2047);
 
 		// Output rungler signal
 		AudioOut1(runglerOut);
 		AudioOut2(runglerOut);
 
-		//TODO Output CV signals
+		// TODO Output CV signals
 
-		//Output pulse signals
-		PulseOut1(bits[SHIFT_REG_SIZE - 2]);
+		// Output pulse signals
+		PulseOut1(bits[SHIFT_REG_SIZE - 4]);
 		PulseOut2(bits[SHIFT_REG_SIZE - 1]);
 
 		// show shiftreg state on LEDs
 		for (int i = 0; i < 6; i++)
 		{
-			LedBrightness(i, (bits[i] ? KnobVal(Knob::Y) : 0) * 4095 >> 12);
+			LedBrightness(ledMap[i], (bits[i] ? KnobVal(Knob::Y) : 0) * 4095 >> 12);
 		}
 	}
 
 private:
 	bool bits[SHIFT_REG_SIZE];
 	bool mainClock = false;
-	int16_t mainKnob;
+	int16_t turingP;
 	int16_t data;
 	int16_t vca = 0;
 	bool comparator;
+	int8_t ledMap[SHIFT_REG_SIZE] = {0, 2, 4, 1, 3, 5};
+	bool direction = RIGHT;
 
 	void rotate(bool *array, bool direction)
 	{
