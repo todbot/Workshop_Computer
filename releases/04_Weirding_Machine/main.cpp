@@ -2,7 +2,8 @@
 
 #define SHIFT_REG_SIZE 6
 #define RUNGLER_DAC_BITS 3
-#define RIGHT true
+#define FWD 1
+#define BACK 0
 
 // 12 bit random number generator
 uint32_t __not_in_flash_func(rnd12)()
@@ -21,13 +22,14 @@ public:
 		// CONSTRUCTOR
 		for (int i = 0; i < SHIFT_REG_SIZE; i++)
 		{
-			bits[i] = 1;
+			bits[i] = 0;
 		}
 	}
 
 	virtual void ProcessSample()
 	{
-		int16_t runglerOut = 0;
+		int16_t runglerOut1 = 0;
+		int16_t runglerOut2 = 0;
 		Switch sw = SwitchVal();
 
 		fwdClock = PulseIn1RisingEdge();
@@ -37,6 +39,8 @@ public:
 		if (Connected(Input::Audio2))
 		{
 			turingP = AudioIn2();
+			clip(turingP, 0, 2048);
+			turingP <<= 1; // Convert to 0-4095
 		}
 		else
 		{
@@ -78,58 +82,81 @@ public:
 		if (fwdClock)
 		{
 
-			rotate(bits, direction);
+			rotate(bits, FWD);
 
 			if (sw == Switch::Down)
 			{
-				bits[0] = !bits[0]; // Toggle the first bit
+				bits[0] = 1; // Always set the first bit to 1
 			}
 			else if (sw == Switch::Up)
 			{
-				// LEAVE BITS UNCHANGED
+				bits[0] = !bits[0]; // Always Toggle the first bit
 			}
 			else // sw == Switch::Middle
 			{
-				if (Connected(Input::Audio1))
-				{
-					data = AudioIn1() + 2048; // Convert to 0-4095
-				}
-				else
-				{
-					data = rnd12();
-				}
-
-				clip(data, 1, 4094);
-
-				comparator = data > turingP;
-
-				if (comparator)
+				calcData();
+				
+				if (data > turingP)
 				{
 					bits[0] = !bits[0]; // Toggle the first bit
 				}
 			}
 		}
 
+		if (backClock)
+		{
+			rotate(bits, BACK);
+
+			if (sw == Switch::Down)
+			{
+				bits[SHIFT_REG_SIZE-1] = 0; // Always set the last bit to 0
+			}
+			else if (sw == Switch::Up)
+			{
+				bits[SHIFT_REG_SIZE-1] = !bits[SHIFT_REG_SIZE-1]; // Always Toggle the LAST bit
+			}
+			else // sw == Switch::Middle
+			{
+				calcData();
+
+				if (data > turingP)
+				{
+					bits[SHIFT_REG_SIZE-1] = !bits[SHIFT_REG_SIZE-1]; // Toggle the last bit
+				}
+			}
+		}
+
+		for (int i = 0; i < RUNGLER_DAC_BITS; i++)
+		{
+			runglerOut1 |= (bits[i] << i);
+		}
+
 		for (int i = SHIFT_REG_SIZE - RUNGLER_DAC_BITS - 1; i < SHIFT_REG_SIZE; i++)
 		{
-			runglerOut |= (bits[i] << (i - (SHIFT_REG_SIZE - RUNGLER_DAC_BITS)));
+			runglerOut2 |= (bits[i] << (i - (SHIFT_REG_SIZE - RUNGLER_DAC_BITS)));
 		}
 
 		// convert 3 bit output to 12 bit values between -2048 and 2047
-		runglerOut = (runglerOut << (12 - RUNGLER_DAC_BITS));
+		runglerOut1 = (runglerOut1 << (12 - RUNGLER_DAC_BITS));
+		runglerOut2 = (runglerOut2 << (12 - RUNGLER_DAC_BITS));
 
 		// Attenuate the output based on the vca value
-		runglerOut = (runglerOut * vca) >> 13;
+		runglerOut1 = (runglerOut1 * vca) >> 12;
+		runglerOut2 = (runglerOut2 * vca) >> 12;
 
-		// Add offset to the output
-		runglerOut += offset;
-		runglerOut -= 2048; // Convert to -2048 to 2047
-		runglerOut *= -1; // Invert the signal
-		clip(runglerOut, -2048, 2047);
+		// Add offset to the outputs
+		runglerOut1 += offset;
+		runglerOut2 += offset;
+		runglerOut1 -= 2048; // Convert to -2048 to 2047
+		runglerOut2 -= 2048; // Convert to -2048 to 2047
+		runglerOut1 *= -1; // Invert the signal
+		runglerOut2 *= -1; // Invert the signal
+		clip(runglerOut1, -2048, 2047);
+		clip(runglerOut2, -2048, 2047);
 
 		// Output rungler signal
-		AudioOut1(runglerOut);
-		AudioOut2(runglerOut);
+		AudioOut1(runglerOut1);
+		AudioOut2(runglerOut2);
 
 		// TODO Output CV signals
 
@@ -153,8 +180,21 @@ private:
 	int16_t vca = 0;
 	bool comparator;
 	int8_t ledMap[SHIFT_REG_SIZE] = {0, 2, 4, 1, 3, 5};
-	bool direction = RIGHT;
 	int16_t offset = 0;
+
+	void calcData()
+	{
+		if (Connected(Input::Audio1))
+				{
+					data = AudioIn1() + 2048; // Convert to 0-4095
+				}
+				else
+				{
+					data = rnd12();
+				}
+
+				clip(data, 1, 4094);
+	}
 
 	void rotate(bool *array, bool direction)
 	{
