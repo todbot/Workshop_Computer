@@ -1,4 +1,5 @@
 #include "ComputerCard.h"
+#include "quantiser.h"
 
 #define SHIFT_REG_SIZE 6
 #define RUNGLER_DAC_BITS 3
@@ -149,16 +150,24 @@ public:
 		runglerOut2 += offset;
 		runglerOut1 -= 2048; // Convert to -2048 to 2047
 		runglerOut2 -= 2048; // Convert to -2048 to 2047
+		int16_t quantizedRunglerOut1 = runglerOut1;
+		int16_t quantizedRunglerOut2 = runglerOut2;
 		runglerOut1 *= -1; // Invert the signal
 		runglerOut2 *= -1; // Invert the signal
 		clip(runglerOut1, -2048, 2047);
 		clip(runglerOut2, -2048, 2047);
+		clip(quantizedRunglerOut1, -2048, 2047);
+		clip(quantizedRunglerOut2, -2048, 2047);
+		quantizedRunglerOut1 = quantSample(quantizedRunglerOut1);
+		quantizedRunglerOut2 = quantSample(quantizedRunglerOut2);
 
 		// Output rungler signal
 		AudioOut1(runglerOut1);
 		AudioOut2(runglerOut2);
 
-		// TODO Output CV signals
+		//Output Quantized CV signals
+		CVOut1MIDINote(quantizedRunglerOut1);
+		CVOut2MIDINote(quantizedRunglerOut2);
 
 		// Output pulse signals
 		PulseOut1(bits[SHIFT_REG_SIZE - 4]);
