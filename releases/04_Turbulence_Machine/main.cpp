@@ -15,10 +15,10 @@ uint32_t __not_in_flash_func(rnd12)()
 }
 
 /// Weirding Machine
-class WeirdingMachine : public ComputerCard
+class TurbulenceMachine : public ComputerCard
 {
 public:
-	WeirdingMachine()
+	TurbulenceMachine()
 	{
 		// CONSTRUCTOR
 		for (int i = 0; i < SHIFT_REG_SIZE; i++)
@@ -244,7 +244,7 @@ private:
 
 int main()
 {
-	WeirdingMachine wm;
-	wm.EnableNormalisationProbe();
-	wm.Run();
+	TurbulenceMachine turb;
+	turb.EnableNormalisationProbe();
+	turb.Run();
 }
