@@ -30,12 +30,9 @@ public:
 		int16_t runglerOut = 0;
 		Switch sw = SwitchVal();
 
-		mainClock = PulseIn1RisingEdge();
+		fwdClock = PulseIn1RisingEdge();
+		backClock = PulseIn2RisingEdge();
 
-		if(PulseIn2RisingEdge())
-		{
-			direction = !direction; // Toggle direction on PulseIn2 rising edge
-		}
 
 		if (Connected(Input::Audio2))
 		{
@@ -57,10 +54,28 @@ public:
 			turingP = 4095;
 		}
 
-		vca = KnobVal(Knob::Y);
-		int16_t offset = KnobVal(Knob::X);
+		if (Connected(Input::CV2))
+		{
+			vca = CVIn2() * KnobVal(Knob::Y) >> 12;;
+			clip(vca, 0, 2048);
+			vca <<= 1; // Convert to 0-4095
+		}
+		else
+		{
+			vca = KnobVal(Knob::Y);
+		}
 
-		if (mainClock)
+		if (Connected(Input::CV1))
+		{
+			offset = CVIn1() * (KnobVal(Knob::X)-2048) >> 12;	
+			offset += 2048; // Convert to 0-4095
+		}
+		else
+		{
+			offset = KnobVal(Knob::X);
+		}
+
+		if (fwdClock)
 		{
 
 			rotate(bits, direction);
@@ -125,19 +140,21 @@ public:
 		// show shiftreg state on LEDs
 		for (int i = 0; i < 6; i++)
 		{
-			LedBrightness(ledMap[i], (bits[i] ? KnobVal(Knob::Y) : 0) * 4095 >> 12);
+			LedBrightness(ledMap[i], (bits[i] ? vca : 0) * 4095 >> 12);
 		}
 	}
 
 private:
 	bool bits[SHIFT_REG_SIZE];
-	bool mainClock = false;
+	bool fwdClock = false;
+	bool backClock = false;
 	int16_t turingP;
 	int16_t data;
 	int16_t vca = 0;
 	bool comparator;
 	int8_t ledMap[SHIFT_REG_SIZE] = {0, 2, 4, 1, 3, 5};
 	bool direction = RIGHT;
+	int16_t offset = 0;
 
 	void rotate(bool *array, bool direction)
 	{
