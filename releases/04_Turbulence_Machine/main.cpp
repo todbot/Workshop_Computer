@@ -3,6 +3,7 @@
 
 #define SHIFT_REG_SIZE 6
 #define RUNGLER_DAC_BITS 3
+#define RUNGLER_DAC_CELLS 2
 #define FWD 1
 #define BACK 0
 
@@ -36,6 +37,8 @@ public:
 		fwdClock = PulseIn1RisingEdge();
 		backClock = PulseIn2RisingEdge();
 
+		bool theIllusionOfStability = false;
+
 
 		if (Connected(Input::Audio2))
 		{
@@ -53,6 +56,7 @@ public:
 		if (turingP < 15)
 		{
 			turingP = 0;
+			theIllusionOfStability = true;
 		}
 		else if (turingP > 4095 - 15)
 		{
@@ -87,19 +91,26 @@ public:
 
 			if (sw == Switch::Down)
 			{
-				bits[0] = 1; // Always set the first bit to 1
+				bits[0] = 0x3; // Always set the first bit to binary 11 = int 3 = hex 0x3
 			}
-			else if (sw == Switch::Up)
+			else if (sw == Switch::Up || theIllusionOfStability)
 			{
-				bits[0] = !bits[0]; // Always Toggle the first bit
+				bits[0] = ~bits[0] & 0x3; // Always Toggle the first bit
 			}
 			else // sw == Switch::Middle
 			{
-				calcData();
+				if (Connected(Input::Audio1))
+				{
+					data = AudioIn1() + 2048; // Convert to 0-4095
+				}
+				else
+				{
+					data = rnd12();
+				}
 				
 				if (data > turingP)
 				{
-					bits[0] = !bits[0]; // Toggle the first bit
+					bits[0] = ~data & 0x3; // Toggle the first bit
 				}
 			}
 		}
@@ -110,36 +121,45 @@ public:
 
 			if (sw == Switch::Down)
 			{
-				bits[SHIFT_REG_SIZE-1] = 0; // Always set the last bit to 0
+				bits[SHIFT_REG_SIZE-1] = 0x0; // Always set the last bit to 0
 			}
-			else if (sw == Switch::Up)
+			else if (sw == Switch::Up || theIllusionOfStability)
 			{
-				bits[SHIFT_REG_SIZE-1] = !bits[SHIFT_REG_SIZE-1]; // Always Toggle the LAST bit
+				bits[SHIFT_REG_SIZE-1] = ~bits[SHIFT_REG_SIZE-1] & 0x3; // Always Toggle the LAST bit
 			}
 			else // sw == Switch::Middle
 			{
-				calcData();
+				if (Connected(Input::Audio1))
+				{
+					data = AudioIn1() + 2048; // Convert to 0-4095
+				}
+				else
+				{
+					data = rnd12();
+				}
+
+				clip(data, 1, 4094);
 
 				if (data > turingP)
 				{
-					bits[SHIFT_REG_SIZE-1] = !bits[SHIFT_REG_SIZE-1]; // Toggle the last bit
+					bits[SHIFT_REG_SIZE-1] = ~data & 0x3; // Toggle the last bit
 				}
 			}
 		}
 
 		for (int i = 0; i < RUNGLER_DAC_BITS; i++)
 		{
-			runglerOut1 |= (bits[i] << i);
+			runglerOut1 |= ((bits[i] << (2 * i)) & 0x3F);
 		}
 
 		for (int i = SHIFT_REG_SIZE - RUNGLER_DAC_BITS - 1; i < SHIFT_REG_SIZE; i++)
 		{
-			runglerOut2 |= (bits[i] << (i - (SHIFT_REG_SIZE - RUNGLER_DAC_BITS)));
+			runglerOut2 |= ((bits[i] << (2 * (i - (SHIFT_REG_SIZE - RUNGLER_DAC_BITS)))) & 0x3F);
 		}
 
 		// convert 3 bit output to 12 bit values between -2048 and 2047
-		runglerOut1 = (runglerOut1 << (12 - RUNGLER_DAC_BITS));
-		runglerOut2 = (runglerOut2 << (12 - RUNGLER_DAC_BITS));
+		runglerOut1 = (runglerOut1 << (12 - (RUNGLER_DAC_BITS * RUNGLER_DAC_CELLS)));
+		runglerOut2 = (runglerOut2 << (12 - (RUNGLER_DAC_BITS * RUNGLER_DAC_CELLS)));
 
 		// Attenuate the output based on the vca value
 		runglerOut1 = (runglerOut1 * vca) >> 12;
@@ -176,36 +196,21 @@ public:
 		// show shiftreg state on LEDs
 		for (int i = 0; i < 6; i++)
 		{
-			LedBrightness(ledMap[i], (bits[i] ? vca : 0) * 4095 >> 12);
+			LedBrightness(ledMap[i], (bits[i] << 10) * vca >> 12);
 		}
 	}
 
 private:
-	bool bits[SHIFT_REG_SIZE];
+	int8_t bits[SHIFT_REG_SIZE];
 	bool fwdClock = false;
 	bool backClock = false;
 	int16_t turingP;
 	int16_t data;
 	int16_t vca = 0;
-	bool comparator;
 	int8_t ledMap[SHIFT_REG_SIZE] = {0, 2, 4, 1, 3, 5};
 	int16_t offset = 0;
 
-	void calcData()
-	{
-		if (Connected(Input::Audio1))
-				{
-					data = AudioIn1() + 2048; // Convert to 0-4095
-				}
-				else
-				{
-					data = rnd12();
-				}
-
-				clip(data, 1, 4094);
-	}
-
-	void rotate(bool *array, bool direction)
+	void rotate(int8_t *array, bool direction)
 	{
 		if (direction) // Rotate right
 		{
