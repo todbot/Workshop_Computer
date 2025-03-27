@@ -39,7 +39,6 @@ public:
 
 		bool theIllusionOfStability = false;
 
-
 		if (Connected(Input::Audio2))
 		{
 			turingP = AudioIn2();
@@ -61,27 +60,6 @@ public:
 		else if (turingP > 4095 - 15)
 		{
 			turingP = 4095;
-		}
-
-		if (Connected(Input::CV2))
-		{
-			vca = CVIn2() * KnobVal(Knob::Y) >> 12;;
-			clip(vca, 0, 2048);
-			vca <<= 1; // Convert to 0-4095
-		}
-		else
-		{
-			vca = KnobVal(Knob::Y);
-		}
-
-		if (Connected(Input::CV1))
-		{
-			offset = CVIn1() * (KnobVal(Knob::X)-2048) >> 12;	
-			offset += 2048; // Convert to 0-4095
-		}
-		else
-		{
-			offset = KnobVal(Knob::X);
 		}
 
 		if (fwdClock)
@@ -107,12 +85,15 @@ public:
 				{
 					data = rnd12();
 				}
-				
+
 				if (data > turingP)
 				{
 					bits[0] = ~data & 0x3; // Toggle the first bit
 				}
 			}
+
+			calcOffset();
+			calcVca();
 		}
 
 		if (backClock)
@@ -121,11 +102,11 @@ public:
 
 			if (sw == Switch::Down)
 			{
-				bits[SHIFT_REG_SIZE-1] = 0x0; // Always set the last bit to 0
+				bits[SHIFT_REG_SIZE - 1] = 0x0; // Always set the last bit to 0
 			}
 			else if (sw == Switch::Up || theIllusionOfStability)
 			{
-				bits[SHIFT_REG_SIZE-1] = ~bits[SHIFT_REG_SIZE-1] & 0x3; // Always Toggle the LAST bit
+				bits[SHIFT_REG_SIZE - 1] = ~bits[SHIFT_REG_SIZE - 1] & 0x3; // Always Toggle the LAST bit
 			}
 			else // sw == Switch::Middle
 			{
@@ -142,9 +123,11 @@ public:
 
 				if (data > turingP)
 				{
-					bits[SHIFT_REG_SIZE-1] = ~data & 0x3; // Toggle the last bit
+					bits[SHIFT_REG_SIZE - 1] = ~data & 0x3; // Toggle the last bit
 				}
 			}
+			calcOffset();
+			calcVca();
 		}
 
 		for (int i = 0; i < RUNGLER_DAC_BITS; i++)
@@ -157,7 +140,7 @@ public:
 			runglerOut2 |= ((bits[i] << (2 * (i - (SHIFT_REG_SIZE - RUNGLER_DAC_BITS)))) & 0x3F);
 		}
 
-		// convert 3 bit output to 12 bit values between -2048 and 2047
+		// convert 6 bit output to 12 bit values for DAC
 		runglerOut1 = (runglerOut1 << (12 - (RUNGLER_DAC_BITS * RUNGLER_DAC_CELLS)));
 		runglerOut2 = (runglerOut2 << (12 - (RUNGLER_DAC_BITS * RUNGLER_DAC_CELLS)));
 
@@ -185,13 +168,13 @@ public:
 		AudioOut1(runglerOut1);
 		AudioOut2(runglerOut2);
 
-		//Output Quantized CV signals
+		// Output Quantized CV signals
 		CVOut1MIDINote(quantizedRunglerOut1);
 		CVOut2MIDINote(quantizedRunglerOut2);
 
 		// Output pulse signals
-		PulseOut1(bits[SHIFT_REG_SIZE - 4]);
-		PulseOut2(bits[SHIFT_REG_SIZE - 1]);
+		PulseOut1(bits[SHIFT_REG_SIZE - 4] & 0x1);
+		PulseOut2(bits[SHIFT_REG_SIZE - 1] & 0x1);
 
 		// show shiftreg state on LEDs
 		for (int i = 0; i < 6; i++)
@@ -201,7 +184,7 @@ public:
 	}
 
 private:
-	int8_t bits[SHIFT_REG_SIZE];
+	int16_t bits[SHIFT_REG_SIZE];
 	bool fwdClock = false;
 	bool backClock = false;
 	int16_t turingP;
@@ -210,11 +193,11 @@ private:
 	int8_t ledMap[SHIFT_REG_SIZE] = {0, 2, 4, 1, 3, 5};
 	int16_t offset = 0;
 
-	void rotate(int8_t *array, bool direction)
+	void rotate(int16_t *array, bool direction)
 	{
 		if (direction) // Rotate right
 		{
-			bool lastBit = array[SHIFT_REG_SIZE - 1];
+			int16_t lastBit = array[SHIFT_REG_SIZE - 1];
 
 			for (int i = SHIFT_REG_SIZE - 1; i > 0; i--)
 			{
@@ -224,13 +207,41 @@ private:
 		}
 		else // Rotate left
 		{
-			bool firstBit = array[0];
+			int16_t firstBit = array[0];
 
 			for (int i = 0; i < SHIFT_REG_SIZE - 1; i++)
 			{
 				array[i] = array[i + 1];
 			}
 			array[SHIFT_REG_SIZE - 1] = firstBit;
+		}
+	}
+
+	void calcOffset()
+	{
+		if (Connected(Input::CV1))
+		{
+			offset = CVIn1() * (KnobVal(Knob::X) - 2048) >> 12;
+			offset += 2048; // Convert to 0-4095
+		}
+		else
+		{
+			offset = KnobVal(Knob::X);
+		}
+	}
+
+	void calcVca()
+	{
+		if (Connected(Input::CV2))
+		{
+			vca = CVIn2() * KnobVal(Knob::Y) >> 12;
+			;
+			clip(vca, 0, 2048);
+			vca <<= 1; // Convert to 0-4095
+		}
+		else
+		{
+			vca = KnobVal(Knob::Y);
 		}
 	}
 
