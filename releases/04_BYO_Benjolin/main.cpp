@@ -15,11 +15,11 @@ uint32_t __not_in_flash_func(rnd12)()
 	return lcg_seed >> 20;
 }
 
-/// Weirding Machine
-class TurbulenceMachine : public ComputerCard
+/// BYOBenjolin
+class BYOBenjolin : public ComputerCard
 {
 public:
-	TurbulenceMachine()
+	BYOBenjolin()
 	{
 		// CONSTRUCTOR
 		for (int i = 0; i < SHIFT_REG_SIZE; i++)
@@ -260,7 +260,7 @@ private:
 
 int main()
 {
-	TurbulenceMachine turb;
-	turb.EnableNormalisationProbe();
-	turb.Run();
+	BYOBenjolin byoBenj;
+	byoBenj.EnableNormalisationProbe();
+	byoBenj.Run();
 }
