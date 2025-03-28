@@ -41,9 +41,7 @@ public:
 
 		if (Connected(Input::Audio2))
 		{
-			turingP = AudioIn2();
-			clip(turingP, 0, 2048);
-			turingP <<= 1; // Convert to 0-4095
+			turingP = AudioIn2() + KnobVal(Knob::Main);
 		}
 		else
 		{
