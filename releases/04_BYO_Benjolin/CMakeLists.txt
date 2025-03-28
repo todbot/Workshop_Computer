@@ -16,7 +16,7 @@ set(PICO_BOARD pico CACHE STRING "Board type")
 
 cmake_minimum_required (VERSION 3.13)
 include(pico_sdk_import.cmake)
-project(turbulence_machine C CXX ASM)
+project(byo_benjolin C CXX ASM)
 set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
@@ -32,4 +32,4 @@ macro (add_card _name)
     endif()
   endmacro()
   
-add_card(turbulence_machine)
+add_card(byo_benjolin)
