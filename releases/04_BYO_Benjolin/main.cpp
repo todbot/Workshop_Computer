@@ -21,7 +21,7 @@ class BYOBenjolin : public ComputerCard
 public:
 	BYOBenjolin()
 	{
-		// CONSTRUCTOR
+		// Constructor sets up shift register
 		for (int i = 0; i < SHIFT_REG_SIZE; i++)
 		{
 			bits[i] = 0;
@@ -30,26 +30,34 @@ public:
 
 	virtual void ProcessSample()
 	{
+		//the outputs are empty integers that we will fill with binary values
 		int16_t runglerOut1 = 0;
 		int16_t runglerOut2 = 0;
+
 		Switch sw = SwitchVal();
 
+		//left pulse input rotates fwd/right and right pulse input rotates back/left
 		fwdClock = PulseIn1RisingEdge();
 		backClock = PulseIn2RisingEdge();
 
+		//With a bit-depth of more than 1 in each cell of the shift register, having the lock knob at 0 doesn't "naturally" produce a stable output.
+		//So this boolean forces stability in that position in order to make those familiar with Turing Machines feel at home.
 		bool theIllusionOfStability = false;
 
 		if (Connected(Input::Audio2))
 		{
+			// If AudioIn2 is connected, use it to control the Turing Probability
 			turingP = AudioIn2() + KnobVal(Knob::Main);
 		}
 		else
 		{
+			// If AudioIn2 is not connected, use the main knob to control the Turing Probability
 			turingP = KnobVal(Knob::Main);
 		}
 
 		clip(turingP, 0, 4095);
 
+		// Virtual detentes for the Turing Probability knob
 		if (turingP < 15)
 		{
 			turingP = 0;
@@ -67,10 +75,12 @@ public:
 
 			if (sw == Switch::Down)
 			{
+				//The equivalent of Turing Machines's write switch
 				bits[0] = 0x3; // Always set the first bit to binary 11 = int 3 = hex 0x3
 			}
 			else if (sw == Switch::Up || theIllusionOfStability)
 			{
+				//The equivalent of the looping switch on a Rungler.
 				bits[0] = ~bits[0] & 0x3; // Always Toggle the first bit
 			}
 			else // sw == Switch::Middle
@@ -81,16 +91,16 @@ public:
 				}
 				else
 				{
-					data = rnd12();
+					data = rnd12(); //default to noise as the data input, which mimics Turing Machine behavior
 				}
 
 				if (data > turingP)
 				{
-					bits[0] = ~data & 0x3; // Toggle the first bit
+					bits[0] = ~data & 0x3; // Instead of just flipping the write bit, we are now fliping the entire 2-bit int
 				}
 			}
 
-			calcOffset();
+			calcOffset(); //offset and vca are S&H to the clock
 			calcVca();
 		}
 
@@ -121,12 +131,18 @@ public:
 
 				if (data > turingP)
 				{
-					bits[SHIFT_REG_SIZE - 1] = ~data & 0x3; // Toggle the last bit
+					bits[SHIFT_REG_SIZE - 1] = ~data & 0x3; //note the write bit is the LAST bit when clocking back/left. This is different than the fwd/right clocking.
 				}
 			}
 			calcOffset();
 			calcVca();
 		}
+
+		// Now we have a shift register full of bits, let's process them for output
+		// Each output creates a 6 bit signal out of 3 2-bit cells (left and right on the LED screen)
+		// Ie. for the right (channel 2) signal, if the shift register contains {0, 1, 2, 3, 0, 1} (in binary: 00, 01, 10, 11, 00, 01)
+		// then we take the last 3 values and concatenate them to build a new six bit signal: binary 110001 which is 49 in decimal
+		// for the left (channel 1) signal, we do the same but with the first 3 values in the shift register
 
 		for (int i = 0; i < RUNGLER_DAC_BITS; i++)
 		{
@@ -151,14 +167,17 @@ public:
 		runglerOut2 += offset;
 		runglerOut1 -= 2048; // Convert to -2048 to 2047
 		runglerOut2 -= 2048; // Convert to -2048 to 2047
-		int16_t quantizedRunglerOut1 = runglerOut1;
+		int16_t quantizedRunglerOut1 = runglerOut1; // save values for quantization
 		int16_t quantizedRunglerOut2 = runglerOut2;
 		runglerOut1 *= -1; // Invert the signal
 		runglerOut2 *= -1; // Invert the signal
+		//make sure the output values are in the correct range for the DAC
 		clip(runglerOut1, -2048, 2047);
 		clip(runglerOut2, -2048, 2047);
 		clip(quantizedRunglerOut1, -2048, 2047);
 		clip(quantizedRunglerOut2, -2048, 2047);
+
+		// Quantize the output to the nearest MIDI note for our CV outputs
 		quantizedRunglerOut1 = quantSample(quantizedRunglerOut1);
 		quantizedRunglerOut2 = quantSample(quantizedRunglerOut2);
 
@@ -170,11 +189,15 @@ public:
 		CVOut1MIDINote(quantizedRunglerOut1);
 		CVOut2MIDINote(quantizedRunglerOut2);
 
-		// Output pulse signals
+		// Output pulse signals based on the bottom bit of each channel
 		PulseOut1(bits[SHIFT_REG_SIZE - 4] & 0x1);
 		PulseOut2(bits[SHIFT_REG_SIZE - 1] & 0x1);
 
 		// show shiftreg state on LEDs
+		// each LED shows a 2-bit value from the 6 step shift register
+		// The first 3 LEDs show the first 3 bits of the shift register (left channel)
+		// The last 3 LEDs show the last 3 bits of the shift register (right channel)
+		// With 2-bit signals we end up with 4 brightness levels (and possible values) for each LED:
 		for (int i = 0; i < 6; i++)
 		{
 			LedBrightness(ledMap[i], (bits[i] << 10) * vca >> 12);
