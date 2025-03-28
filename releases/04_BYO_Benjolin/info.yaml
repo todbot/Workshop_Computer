@@ -1,5 +1,5 @@
-Description: Self-destructing (but tamable) rungler chaos with a familiar interface
+Description: Rungler, Chaotic VCO, Noise Source, Turing Machine, Quantizer
 Language: Pico SDK
 Creator: Dune Desormeaux
-Version: 0.9
-Status: Beta
+Version: 1.0
+Status: Released
