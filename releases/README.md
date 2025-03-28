@@ -3,7 +3,7 @@
 | ----------- | ----------- | ------- | -------- | ------- | ------ |
 | 00_Simple_MIDI | Takes USB midi, sends it to pulse and CV outputs, also sends knob positions and CV inputs back to the computer as CC values. | 0.5 | Arduino-Pico | Tom Whitwell | Working but simple |
 | 03_Turing_Machine | Turing Machine with tap tempo clock, 2 x pulse outputs, 4 x CV outputs | 0.1 | Arduino-Pico | Tom Whitwell | Working but Simple |
-| 04_Turbulence_Machine | Self-destructing (but tamable) rungler chaos with a familiar interface | 0.9 | Pico SDK | Dune Desormeaux | Beta |
+| 04_BYO_Benjolin | Rungler, Chaotic VCO, Noise Source, Turing Machine, Quantizer | 1.0 | Pico SDK | Dune Desormeaux | Released |
 | 05_chord_blimey | Generates CV/Pulse arpeggios | 0.9 | C (RPi Pico SDK) | Tom Waters | Mostly complete (for now) |
 | 06_usb_audio | USB audio output | 0.1 | C (RPi Pico SDK) | Chris Johnson | Proof of concept |
 | 08_bytebeat | Generates and mangles bytebeats | 0.1 | C++/Arduino-Pico | Matt Kuebrich | Functional but WIP |
