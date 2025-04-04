@@ -18,6 +18,7 @@
 | 30_cirpy_wavetable | Wavetable oscillator that using wavetables from Plaits, Braids, and Microwave, | 0.1 | Circuit Python | @todbot / Tod Kurt | Functional but WIP |
 | 38_od | Loopable chaotic Lorenz attractor trajectories and zero-crossings as CV and pulses, with sensitivity to initial conditions. | 0.0 | MicroPython | M. John Mills | Functional but WIP (no .uf2) |
 | 42_backyard_rain | Nature soundscape audio. A cozy rain ambience mix for background listening. You control the intensity. This card plays rain ambience which was recorded in my backyard. | (see source repo) | Rust (Embassy framework) | Brian Dorsey | Released |
+| 53_glitter | Granular looper. Make a two second loop and play it back via a CV controllable grain engine. | (see source repo) | C++/Pico SDK | Steve Jones | Released |
 | 77_Placeholder | Reserved for secret project | 0.0 | None | None | None |
 | 78_Talker | Proof of concept speech synthesizer, based on TalkiePCM, inspired by 1970s LPC speech synths. | 0.1 | C (RPi Pico SDK) | Chris Johnson | Proof of concept |
 | 88_Blank | Reserved for blank 88 cards | 0 | None | Tom Whitwell | None |
