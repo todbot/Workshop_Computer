@@ -9,11 +9,14 @@ Here, a standalone HTML/JavaScript page provides the interface for the user to s
 1. Compile this example and upload the resulting `sample_upload.uf2` to the Computer
 2. Open `generate_sample_uf2.html` in a browser and use the interface to select some (16-bit mono) WAV file samples to upload. Use this page to generate a UF2 file containing the samples, and upload this to the Computer.
 
-## Shortcomings
-In the interests of providing a simple, minimal example, this code has various shortcomings that would be corrected in a real card. 
-* The RP2040 firmware simply plays each uploaded WAV file in turn. Clearly, there are many more musically-interesting possibilities for samples. 
-* Only 16-bit mono PCM WAV files are supported. All samples are played at 48kHz regardless of original sample rate.
-* Some assumptions about the WAV file are made - most notably, sample data within the WAV file must be 2-byte aligned.
+Once uploaded,
+* Samples are played through both audio outputs
+* Knob Y + CV input 2 control the playback speed
+* if the switch is up, the samples are played in sequence
+* if the switch is in the middle position, the main knob + CV input 1 select which sample to play
+* if the switch is held down for two seconds, the Computer reboots into UF2 upload mode (no need to remove the Main Knob!)
 
-More fundamentally, the approach use here of leveraging the built-in RP2040 bootloader for sample upload has some limitations. In particular it is not possible to use this interface to query what samples are already uploaded, or what the size of the memory card is. A more flexible approach (requiring somewhat more programming effort) would be to build into the RP2040 firmware a custom interface for uploading samples over USB and saving them to the flash memory.
+
+## Shortcomings
+Only 16-bit mono PCM WAV files are supported. More fundamentally, the approach use here of leveraging the built-in RP2040 bootloader for sample upload means that it not possible to use this interface to query what samples are already uploaded, or what the size of the memory card is. A more flexible approach (requiring somewhat more programming effort) would be to build into the RP2040 firmware a custom interface for uploading samples over USB and saving them to the flash memory.
 
