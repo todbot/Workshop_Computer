@@ -67,6 +67,7 @@ For beginners just starting with ComputerCard, the first example to look at is `
 - `normalisation_probe` — minimal example of patch cable detection. LEDs are lit when corresponding sockets have a jack plugged in.
 - `passthrough` — simple demonstration of using the jacks, knobs, switch and LEDs.
 - `sample_and_hold` — dual sample and hold, demonstrating jacks, normalisation probe and pseudo-random numbers
+- `sample_upload` — an interface for users to upload audio samples (in WAV file format) to a Computer card, and play these back
 - `second_core` — demonstration of using the second RP2040 core for more CPU-intensive processing than is possible at the 48kHz sample rate
 - `sine_wave_float` — 440Hz sine wave generator, using floating-point numbers
 - `sine_wave_lookup` — 440Hz sine wave generator, demonstrating scanning and linear interpolation of a lookup table using integer arithmetic 

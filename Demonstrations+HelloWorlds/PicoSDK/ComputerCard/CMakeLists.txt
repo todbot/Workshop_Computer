@@ -35,6 +35,8 @@ add_example(passthrough)
 
 add_example(sample_and_hold)
 
+add_example(sample_upload)
+
 add_example(second_core)
 target_link_libraries(second_core pico_multicore)
 
