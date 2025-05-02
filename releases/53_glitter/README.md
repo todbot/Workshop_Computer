@@ -8,7 +8,7 @@ https://youtu.be/JW8Z_I-ub2A
 
 ## Latest Release
 
-https://github.com/sdrjones/mtws/releases/tag/glitter_v0.1.0-beta
+https://github.com/sdrjones/mtws/releases/tag/glitter_v0.1.2-beta
 
 ## Source repo
 
