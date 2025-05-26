@@ -38,6 +38,8 @@ public:
 		numFiles = 0;
 		LoadWAVsFromFlash();
 
+		startupTimer = 48000;
+		
 		// Set up UART TX pin as RF output
 		SetupDebugPinAsPWM();
 
@@ -47,18 +49,20 @@ public:
 		gpio_put(DEBUG_2, false);	
 	}
 
-	static void OnRFPWMWrap()
-	{
+	static void __not_in_flash_func(OnRFPWMWrap)()
+	{	
 		static int32_t amError = 0, fqError = 0;
-
-		uint32_t amTruncated = (amValue - amError) & 0xFFFFF000;
-		uint32_t fqTruncated = (fqValue - fqError) & 0xFFFFF000;
-		amError += amTruncated - amValue;
-		fqError += fqTruncated - fqValue;
-		hw_xor_bits(&pwm_hw->slice[0].cc, (pwm_hw->slice[0].cc ^ (amTruncated >> 12)));
-		//hw_xor_bits(&pwm_hw->slice[0].top, (pwm_hw->slice[0].top ^ (truncated_val2>>8))& 0x0000FFFF);
-		//	pwm_set_gpio_level(0, amTruncated >> 12);
-		pwm_set_wrap(0, fqTruncated >> 12);
+		int32_t amv = amValue, fqv = fqValue;
+		//sio_hw->gpio_set = 2; // turn on DEBUG_2 LED
+		uint32_t amTruncated = (amv - amError) & 0xFFFFF000;
+		uint32_t fqTruncated = (fqv - fqError) & 0xFFFFF000;
+		
+	   	amError += amTruncated - amv;
+		fqError += fqTruncated - fqv;
+		pwm_hw->slice[0].cc = amTruncated >> 12;
+		pwm_hw->slice[0].top = fqTruncated >> 12;
+		//sio_hw->gpio_clr = 2; // turn off DEBUG_2 LED
+		
 		pwm_hw->intr = 1; // clear interrupt flag for slice 0
 	}
 
@@ -68,8 +72,7 @@ public:
 		gpio_set_function(DEBUG_1, GPIO_FUNC_PWM);
 		// now create PWM config struct
 		pwm_config config = pwm_get_default_config();
-		pwm_config_set_wrap(&config, 49);
-
+		pwm_config_set_wrap(&config, 220);
 
 		// now set this PWM config to apply to the two outputs
 		pwm_init(pwm_gpio_to_slice_num(DEBUG_1), &config, true);
@@ -84,7 +87,7 @@ public:
 		pwm_set_irq_enabled(slice_num, true);
 		
 		irq_set_exclusive_handler(PWM_IRQ_WRAP, AMCoupler::OnRFPWMWrap);
-		irq_set_priority(PWM_IRQ_WRAP, 255);
+		irq_set_priority(PWM_IRQ_WRAP, PICO_HIGHEST_IRQ_PRIORITY);
 		irq_set_enabled(PWM_IRQ_WRAP, true);	
 	}
 	
@@ -100,12 +103,14 @@ public:
 		// If an invalid number of files, probably no valid sample UF2 was uploaded
 		if (numFiles == 0 || numFiles > 256)
 		{
+			numFiles = 0;
 			return -1;
 		}
 		
 		// If start address is not in the right range, probably no valid sample UF2 was uploaded
 		if (wavStartAddress < XIP_BASE || wavStartAddress >= XIP_BASE + PICO_FLASH_SIZE_BYTES)
 		{
+			numFiles = 0;
 			return -1;
 		}
 
@@ -156,6 +161,24 @@ public:
 	
 	virtual void ProcessSample()
 	{
+		if (startupTimer)
+		{
+			if (startupTimer > 24000)
+			for (int i=0; i<6; i++)
+			{
+				LedBrightness(i, (startupTimer-24000)>>3);
+			}
+			else
+			{
+				for (int i=0; i<6; i++)
+				{
+					LedOff(i);
+				}
+			}
+			startupTimer--;
+			return;
+		}
+		
 		// Switch in middle position turns RF output off
 		bool rfOn = SwitchVal() != Middle;
 
@@ -192,18 +215,22 @@ public:
 		int led1 = (ledSignal<1024)?0:(((ledSignal-1024)*5461)>>12);
 		int led3 = (ledSignal<256)?0:((ledSignal>=1024)?4095:(((ledSignal-256)*21845)>>12));
 		int led5 = (ledSignal>=256)?4095:(ledSignal<<4);
+		if (!rfOn) // dim VU meter if not transmitting
+		{
+			led1 >>= 2;
+			led3 >>= 2;
+			led5 >>= 2;
+		}
 		LedBrightness(1, led1);
 		LedBrightness(3, led3);
 		LedBrightness(5, led5);
 
 
 
-		// RF frequency is 200MHz * 4096 / (fqValue+1)
+		// RF frequency is 220MHz * 4096 / (fqValue+1)
 		// Main knob controls frequency over MW band, between 530 and 1600kHz approximately
 		// Knob X adds fine tune
-		// 200MHz*4096 / 512000 = 1600kHz
-		// 200MHz*4096 / (512000 + 4095*253) = 529kHz
-	   	fqValue = 511999 + (4095-mainKnobNR(KnobVal(Main)))*253 - KnobVal(X)*6 - CVIn1()*6;
+	   	fqValue = 563200 + (4095-mainKnobNR(KnobVal(Main)))*280 - KnobVal(X)*6 - CVIn1()*6;
 
 		// If RF output is off, set duty cycle to 0.
 		// Otherwise, duty cycle is (0.25 + the audio), ranging from 0 to 0.5 at most.
@@ -219,15 +246,32 @@ private:
 	unsigned numFiles, currentFile;
 	std::vector<WAVFile> wavfiles;
 
+	unsigned startupTimer;
 };
 
 
+AMCoupler *amp;
+void core1()
+{
+	amp->Run();
+}
+
 int main()
 {
-	set_sys_clock_khz(200000, true);
+	// Mild overclock, required to fit even worse-case jitter of PWM IRQ into the 625ns available
+	set_sys_clock_khz(220000, true);
 
 	AMCoupler am;
+	amp = &am;
 	am.EnableNormalisationProbe();
-	am.Run();
+
+	// Run ComputerCard audio on core 1
+	multicore_launch_core1(core1);
+
+	// This core just does RF IRQ
+	while (1)
+	{
+		__wfi();
+	}
 }
 

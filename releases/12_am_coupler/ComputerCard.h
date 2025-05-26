@@ -1,8 +1,20 @@
 /*
+
+////////MODIFIED FOR USE WITH AM COUPLER CARD ///////////////
+
+
+
 ComputerCard  - by Chris Johnson
 
-This version modified for use specifically with the AM Coupler card.
+ComputerCard is a header-only C++ library, providing a class that
+manages the hardware aspects of the Music Thing Modular Workshop
+System Computer.
 
+It aims to present a very simple C++ interface for card programmers 
+to use the jacks, knobs, switch and LEDs, for programs running at
+a fixed 48kHz audio sample rate.
+
+See examples/ directory
 */
 
 
@@ -24,7 +36,7 @@ This version modified for use specifically with the AM Coupler card.
 class ComputerCard
 {
 	constexpr static int numLeds = 6;
-	constexpr static uint8_t leds[numLeds] = { 10, 11, 12, 13, 14, 15};
+	constexpr static uint8_t leds[numLeds] = { 10, 11, 12, 13, 14, 15 };
 public:
 
 	/// Knob index, used by KnobVal
@@ -161,16 +173,43 @@ protected:
 		cvValue[1] = MIDIToDac(noteNum, 1);
 	}
 	
-	/// Set Pulse 1 output 
-	void __not_in_flash_func(PulseOutLevel1)(int val)
+	/// Set Pulse output (true = on)
+	void __not_in_flash_func(PulseOut)(int i, bool val)
 	{
-		pwm_set_gpio_level(PULSE_1_RAW_OUT, val);
+		
+		pwm_set_gpio_level(PULSE_1_RAW_OUT + i, val?0:5);
 	}
 	
-	/// Set Pulse 2 output
-	void __not_in_flash_func(PulseOutLevel2)(bool val)
+	/// Set Pulse 1 output (true = on)
+	void __not_in_flash_func(PulseOut1)(bool val)
 	{
-		pwm_set_gpio_level(PULSE_2_RAW_OUT, val);
+		pwm_set_gpio_level(PULSE_1_RAW_OUT, val?0:5);
+	}
+	
+	/// Set Pulse 2 output (true = on)
+	void __not_in_flash_func(PulseOut2)(bool val)
+	{
+		pwm_set_gpio_level(PULSE_2_RAW_OUT, val?0:5);
+	}
+
+	
+	/// Set Pulse output (with experimental partially-on state)
+	void __not_in_flash_func(PulseOut)(int i, PulseOutLevel val)
+	{
+		
+		pwm_set_gpio_level(PULSE_1_RAW_OUT + i, val);
+	}
+	
+	/// Set Pulse 1 output (with experimental partially-on state)
+	void __not_in_flash_func(PulseOut1)(PulseOutLevel val)
+	{
+		pwm_set_gpio_level(PULSE_1_RAW_OUT, val?1:5);
+	}
+	
+	/// Set Pulse 2 output (with experimental partially-on state) 
+	void __not_in_flash_func(PulseOut2)(PulseOutLevel val)
+	{
+		pwm_set_gpio_level(PULSE_2_RAW_OUT, val?1:5);
 	}
 
 	
@@ -227,7 +266,7 @@ protected:
 	// 4 5
 	void __not_in_flash_func(LedBrightness)(uint32_t index, uint16_t value)
 	{
-		pwm_set_gpio_level(leds[index], value);
+		pwm_set_gpio_level(leds[index], (value*value)>>8);
 	}
 	
 	/// Turn LED on/off
@@ -343,20 +382,6 @@ private:
 		thisptr->BufferFull();
 	}
 	static ComputerCard *thisptr;
-
-	// 19-bit CV outputs
-	static void OnCVPWMWrap()
-	{
-		static int32_t error1 = 0, error2 = 0;
-
-		pwm_clear_irq(pwm_gpio_to_slice_num(CV_OUT_1)); // clear the interrupt flag
-		uint32_t truncated_cv1_val = (cvValue[0]-error1) & 0xFFFFFF00;
-		error1 += truncated_cv1_val - cvValue[0];
-		pwm_set_gpio_level(CV_OUT_1, (truncated_cv1_val>>8));
-		uint32_t truncated_cv2_val = (cvValue[1]-error2) & 0xFFFFFF00;
-		error2 += truncated_cv2_val - cvValue[1];
-		pwm_set_gpio_level(CV_OUT_2, (truncated_cv2_val>>8));
-	}
 
 };
 
@@ -481,18 +506,8 @@ void __not_in_flash_func(ComputerCard::AudioWorker)()
 	// Call buffer_full ISR when ADC DMA finished
 	irq_set_enabled(DMA_IRQ_0, true);
 	irq_set_exclusive_handler(DMA_IRQ_0, ComputerCard::AudioCallback);
+	irq_set_priority(DMA_IRQ_0, PICO_LOWEST_IRQ_PRIORITY);
 
-/*
-	// Turn on IRQ for CV output PWM
-	uint slice_num = pwm_gpio_to_slice_num(CV_OUT_1);
-	pwm_clear_irq(slice_num);
-	pwm_set_irq_enabled(slice_num, true);
-	
-	irq_set_exclusive_handler(PWM_IRQ_WRAP, ComputerCard::OnCVPWMWrap);
-	irq_set_priority(PWM_IRQ_WRAP, 255);
-	irq_set_enabled(PWM_IRQ_WRAP, true);
-*/
-	
 	// Set up DMA for SPI
 	spi_dmacfg = dma_channel_get_default_config(spi_dma);
 	channel_config_set_transfer_data_size(&spi_dmacfg, DMA_SIZE_16);
@@ -525,8 +540,6 @@ void __not_in_flash_func(ComputerCard::AudioWorker)()
 		{
 			// We can't remove the PWM IRQ from within the ADC IRQ callback, so we do it here instead.
 			irq_set_enabled(PWM_IRQ_WRAP, false);
-			pwm_clear_irq(pwm_gpio_to_slice_num(CV_OUT_1)); // reset CV PWM interrupt flag
-			irq_remove_handler(PWM_IRQ_WRAP, ComputerCard::OnCVPWMWrap);
 			break;
 		}
 		   
@@ -756,8 +769,7 @@ ComputerCard::ComputerCard()
 
 		// now create PWM config struct
 		pwm_config config = pwm_get_default_config();
-		//pwm_config_set_wrap(&config, 133);
-		pwm_config_set_wrap(&config, 8);
+		pwm_config_set_wrap(&config, 65535); // 16-bit PWM
 
 
 		// now set this PWM config to apply to the two outputs
@@ -789,19 +801,19 @@ ComputerCard::ComputerCard()
 
 	
 	////////////////////////////////////////
-	// Initialise pulse outputs (with PWM for intermediate value)	
-// First, tell the CV pins that the PWM is in charge of the value.
+	// Initialise pulse outputs (with PWM for intermediate value)
+	// First, tell the CV pins that the PWM is in charge of the value.
 	gpio_set_function(PULSE_1_RAW_OUT, GPIO_FUNC_PWM);
 	gpio_set_function(PULSE_2_RAW_OUT, GPIO_FUNC_PWM);
 
 	// now create PWM config struct
 	pwm_config config = pwm_get_default_config();
-	pwm_config_set_wrap(&config, 235); 
+	pwm_config_set_wrap(&config, 4); 
 
 	pwm_init(pwm_gpio_to_slice_num(PULSE_1_RAW_OUT), &config, true); // Slice 1, channel A
 	pwm_init(pwm_gpio_to_slice_num(PULSE_2_RAW_OUT), &config, true); // slice 1 channel B (redundant to set up again)
-	pwm_set_gpio_level(PULSE_1_RAW_OUT, 0);
-	pwm_set_gpio_level(PULSE_2_RAW_OUT, 0);
+	pwm_set_gpio_level(PULSE_1_RAW_OUT, 5);
+	pwm_set_gpio_level(PULSE_2_RAW_OUT, 5);
 	
 
 	////////////////////////////////////////
@@ -872,17 +884,6 @@ ComputerCard::ComputerCard()
 	gpio_set_function(EEPROM_SDA, GPIO_FUNC_I2C);
 	gpio_set_function(EEPROM_SCL, GPIO_FUNC_I2C);
 
-	/*
-	// If not using UART pins for UART, instead use as debug lines
-#ifndef ENABLE_UART_DEBUGGING
-	// Debug pins
-	gpio_init(DEBUG_1);
-	gpio_set_dir(DEBUG_1, GPIO_OUT);
-
-	gpio_init(DEBUG_2);
-	gpio_set_dir(DEBUG_2, GPIO_OUT);
-#endif
-	*/
 	// Read hardware version
 	hw = ProbeHardwareVersion();
 	

@@ -2,6 +2,7 @@ cmake_minimum_required (VERSION 3.13)
 include(pico_sdk_import.cmake)
 project(am_coupler C CXX ASM)
 set(CMAKE_CXX_STANDARD 17)
+set(PICO_COPY_TO_RAM,1)
 pico_sdk_init()
 
 macro (add_example _name)
@@ -27,7 +28,6 @@ macro (add_example _name)
 endmacro()
   
   
-
 add_example(am_coupler)
 target_link_libraries(am_coupler pico_multicore )
 

@@ -16,6 +16,7 @@ With a radio antenna very close to the bottom-left corner of the Workshop System
 <img src="docs/txpin.jpg"><img src="docs/soldering.jpg"><img src="docs/grounding.jpg">
 
 Depending on the power supply used, additional grounding of the Workshop System can reduce noise.
+
 ### Quick start:
 1. Attach a ~50cm wire to the UART TX pin as detailed above, and place this immediately adjacent to the antenna of a radio set to receive Medium Wave. Tune the radio so that is 'between stations'.
 2. Plug an audio signal (from one of the SineSquare oscillators, say) into Audio Input 1, and move the switch to the up position to turn on the radio signal. 
@@ -36,11 +37,15 @@ Depending on the power supply used, additional grounding of the Workshop System 
 * **Audio output 1**: Outputs the stored WAV file (regardless of whether there are jacks in the audio inputs)
 * **Audio output 2**: Outputs the modulation signal
 
+
+* **Top left LED:** lit to indicate RF carrier on
+* **Right LEDs:** three LEDs show 'VU meter' for carrier modulation amount
+
 ### WAV file playback:
 This card supports storage and playback of a WAV file, using the same interface as the `sample_upload` example of ComputerCard. If no jack is connected to either audio input, then the WAV file is used as the modulator signal. 
 
 
 ### Tips:
 
-* It is intended that the antenna of the radio receiver is immediately adjacent to the Workshop System. Transmission range and audio quality is highly dependent on conditions, antenna length and position, and frequency. I've generally found higher frequencies give longer range - up to a couple of metres of decent quality with a 50cm wire attached to the Workshop System and a cheap radio receiver. Without appropriate filtering, broadband interference of radio signals propagates much further, at least 10m.
+* It is intended that the antenna of the radio receiver is immediately adjacent to the Workshop System. Transmission range and audio quality is highly dependent on conditions, antenna length and position, and frequency. I've generally found higher frequencies give longer range - up to a couple of metres with a 50cm wire attached to the Workshop System and a cheap radio receiver. Without appropriate filtering, broadband interference of radio signals propagates much further and is easily detectable 10m away.
 * The main knob covers a similar range to the MW band on a radio receiver (530–1600kHz). If the main knob is near its anticlockwise stop, make sure the receiver is tuned to the fundamental frequency, and not its first (or even second) harmonic, which will also be towards the upper and of the MW band. 
