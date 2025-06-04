@@ -3,19 +3,18 @@ ComputerCard is a  [MIT licensed](https://opensource.org/license/mit) header-onl
 manages the hardware aspects of the [Music Thing Modular Workshop
 System Computer](https://www.musicthing.co.uk/workshopsystem/).
 
-It aims to present a very simple C++ framework for card programmers to use the jacks, knobs, switch and LEDs, with a callback at a fixed 48kHz audio sample rate.
+It aims to present a very simple C++ framework for card programmers to use all the hardware features of the Computer, within a callback at a fixed 48kHz audio sample rate.
 
 ComputerCard was designed to work with the [RPi Pico SDK](https://github.com/raspberrypi/pico-sdk) but also works with the Arduino environment using the earlephilhower RP2040 board [as described below](#arduino-ide)
 
 
 Behind the scenes, the ComputerCard class:
 - Manages the ADC and external multiplexer to collect analogue samples from audio inputs, CV inputs, knobs and switch.
-- Applies smoothing, some simple hysteresis, and range extension to knobs and CV, to provide relatively low-noise values that span the whole range (-2048 to 2047 for jacks, 0 to 4095 for knobs). Knob/CV values are updated every audio frame.
-- If enabled, determines whether jacks are connected to the six input sockets by driving the 'normalisation probe' pin and detecting its signal on the inputs.
+- Applies smoothing and some simple hysteresis to knobs and CV, to provide relatively low-noise values updated every audio frame.
+- Signals the external DAC to drive audio outputs.
 - Manages PWM signals for CV output and brightness control of the six LEDs.
-- Sends audio outputs to external DAC.
+- If enabled, determines whether jacks are connected to the six input sockets by driving the 'normalisation probe' pin and detecting its signal on the inputs.
 - Reads EEPROM calibration, if set, for calibrated MIDI note CV outputs.
-
 
 ## Usage:
 Basic usage is intended to be extremely simple. For example, here is complete code for a Sample and Hold card:
@@ -62,17 +61,21 @@ More generally, the process is:
 ComputerCard contains several examples in the `examples/` directory.
 For beginners just starting with ComputerCard, the first example to look at is `passthrough` to introduce the basic functions, followed by `sample_and_hold` for typical usage of these in a 'real' card.
 
-- `midi_device` — example of USB MIDI being used alongside ComputerCard. Sends Computer knob values to the USB host as CC messages.
+- `midi_device` — example of USB MIDI being used alongside ComputerCard. The MTM Computer acts as a USB device, to allow it to be connected to a (laptop/desktop) computer. Sends Computer knob values to the USB host as CC messages.
+- `midi_host` — example of USB MIDI being used alongside ComputerCard. The MTM Computer acts as a USB host, to allow it to be connected to USB MIDI devices such as keyboards/controllers/etc.
+- `midi_device_host` — example of USB MIDI being used alongside ComputerCard. At startup, the MTM computer determines the type of USB port it is connected to, and becomes either a host or device as appropriate. Requires Computer 1.1.0 Hardware. 
 - `normalisation_probe` — minimal example of patch cable detection. LEDs are lit when corresponding sockets have a jack plugged in.
 - `passthrough` — simple demonstration of using the jacks, knobs, switch and LEDs.
 - `sample_and_hold` — dual sample and hold, demonstrating jacks, normalisation probe and pseudo-random numbers
+- `sample_upload` — an interface for users to upload audio samples (in WAV file format) to a Computer card, and play these back
 - `second_core` — demonstration of using the second RP2040 core for more CPU-intensive processing than is possible at the 48kHz sample rate
 - `sine_wave_float` — 440Hz sine wave generator, using floating-point numbers
-- `sine_wave_lookup` — 440Hz sine wave generator, demonstrating scanning and linear interpolation of a lookup table using integer arithmetic
-    
+- `sine_wave_lookup` — 440Hz sine wave generator, demonstrating scanning and linear interpolation of a lookup table using integer arithmetic 
+- `usb_detect` — Displays on the LEDs whether the USB port on the MTM Computer is acting as a 'downstream facing port' (MTM Computer is USB Host), or 'upstream facing port' (MTM Computer is USB device). Requires Computer 1.1.0 Hardware. 
+
 ### Notes
 - Make sure execution of `ComputerCard::ProcessSample` always runs quickly enough that it has returned before the next execution begins (1/48kHz = ~20μs). (See the [guidance below](#programming) on achieving this)
-- It is anticipated that only one instance of a ComputerCard will be created.
+- While multiple ComputerCard objects can be created and used sequentially, only one instance of a ComputerCard can be active (using `Run()`) at any one time.
 
 ### Limitations / potential future improvements
 - Only core 0 of the RP2040 is used
@@ -142,6 +145,267 @@ void loop() {
 - You can also create a .uf2 file with Sketch -> Export Compiled Binary. Your sketch directory should contain a build/rp2040.rp2040.rpipico directory (or similar) with a .uf2 file. Copy this file to your Computer.
 
 
+## Changelog
+
+Early versions do not include a version number in the source code, but can be identified by the MD5 checksum of the `ComputerCard.h` file.
+
+| Version | Date |`ComputerCard.h` MD5 |
+|---------|------|----------------------|
+| 0.1.4   |  2024/11/30 | 37e9eba18047a4bc5999914c03256275 |
+| 0.2.0   | 2024/12/22 | 79c2dddec3cb576ea102ef064996acb2 |
+| 0.2.1   | 2024/12/29 | b5639163decb8d980935aa677d820231 |
+| 0.2.2   | 2025/02/04 | 2602203ab56f56d9f6222eea839b8f5b |
+| 0.2.3   | 2025/02/08 | 6dee0f6690ea3e6b9cb09c2814fd9cc5 |
+| 0.2.4   | 2025/02/28 | 2247e04b8719cdc6df8c625057e8cad1 |
+| 0.2.5   | 2025/03/02 | b76132bc5126e2cb2ee14617f72b7f64 |
+
+#### 0.1.4
+Transfer of code to public Workshop_Computer repository.
+
+#### 0.2.0
+Lots of fixes found during Utility Pair development:
+
+- Fixed incorrect sign of both audio input and output.
+- Fixed incorrect order of audio input jacks
+- Reduced crosstalk of knobs by using different ADC sample
+- Added (not well tested) compensation of ADC DNL errors.
+- Removed `_calibrated` form of CV output functions
+- Added input/output functions with jack number as parameter
+
+#### 0.2.1
+- Removed some residual double-precision calculations in calibration routine
+
+#### 0.2.2
+- Added `Abort` function
+- removed unnecessary 50ms startup delay
+
+#### 0.2.3
+- Added `SwitchChanged` function
+
+#### 0.2.4
+- Added clipping of signed 16-bit audio outputs to -2048-2047 range
+- Detection of Computer v1.1 hardware revision
+
+#### 0.2.5
+- Renamed `GetHardwareVersion()` method to `HardwareVersion()`
+- Renamed `HardwareVersion` enum to `HardwareVersion_t`
+- Added `USBPowerState()` function and `USBPowerState_t` enum
+
+
+# [Reference](#reference)
+
+The following is a list of public and protected methods of the `ComputerCard` class. 
+
+## Public methods
+
+- `void Run()`
+
+   Starts processing of user interface and jacks. Calls `ProcessSample` callback at 48kHz. This method blocks, and in most cases will never return, though calling `Abort()` within ProcessSample will cause it to return.
+   
+- `void EnableNormalisationProbe()`
+ 
+   Call before `Run` to enable detection of connected input jacks.
+   
+
+## Protected methods
+
+- `void ProcessSample()`
+ 
+   Pure virtual processing callback, overridden by all user-written classes that inherit from `ComputerCard`. Called at 48kHz once the `Run` method has been called to start processing.
+   
+   
+The following protected methods are designed to be run within the overridden `ProcessSample` callback method, to access the hardware of the Computer. These functions are quick to run, and most are designated `__not_in_flash_func` to ensure that they run with low latency from RAM.
+
+### Knobs and switches
+- `int32_t KnobVal(Knob ind)`
+
+   Returns value of the `Knob` specified. Output value is 12-bit integer in the range 0–4095, increasing clockwise. In practice the end of knob travel will likely not quite reach these limits (14–4095 is typical). Knob inputs have some smoothing applied, but a knob left untouched may well jitter between two (or perhaps more) adjacent values.
+ 
+    | `Knob` | Knob |
+    |---------------------|---------|
+    | `Main`            | The big knob|
+    | `X`       | Knob X |
+    | `Y`            | Knob Y | 
+
+- `Switch SwitchVal()`
+
+   Reads the current value of switch Z.
+    | `Switch` | Position |
+    |---------------------|---------|
+    | `Up`            | Up|
+    | `Middle`       | Middle |
+    | `Down`            | Down (momentary) | 
+   
+- `bool SwitchChanged()`
+
+  Returns `true` if the switch value has changed since the last sample. Useful for taking action only when a switch changes, rather than every sample (e.g. `if (SwitchChanged() && SwitchVal() == Down) {...}`). 
+
+### Jack outputs
+In all jack input and output methods with a parameter `int i`, jack 1 (on the left) is set when `i` has the value `0`, and jack 2 (on the right) is set when `i` has the value `1`.
+
+- `void AudioOut(int i, int16_t val)`
+  
+  `void AudioOut1(int16_t val)`
+  
+  `void AudioOut2(int16_t val)`
+
+  Set the value of an audio output jack. Accepts signed 12-bit values, −2048 to 2047, corresponding to roughly −6V (value −2048) to +6V (value 2047). Values outside this will be clipped.
+  
+  The latest `value` specified by the `AudioOut` methods is sent to the audio output jacks *after* the `ProcessSample` function has finished executing.
+ 
+- `void CVOut(int i, int16_t val)`
+ 
+  `void CVOut1(int16_t val)`
+  
+  `void CVOut2(int16_t val)`
+
+  Set the value of an CV output jack. Accepts signed 12-bit values, −2048 to 2047. The range of voltages output is approximately −6V (value −2048) to +6V (value 2047), and is uncalibrated.
+  
+  Unlike the audio outputs, the `CVOut` functions change the CV output immediately, so it is recommended that the value of each CV output is set only once per `ProcessSample` call.
+  
+- `void CVOutMIDINote(int i, uint8_t noteNum)`
+
+  `void CVOut1MIDINote(uint8_t noteNum)`
+  
+  `CVOut2MIDINote(uint8_t noteNum)`
+  
+  Set the value of an CV output jack. Accepts a 12-bit MIDI note number 0–127. If the calibration data has been saved, this will be used to produce calibrated output voltages. The precision of the voltage output is roughly 5.9mV (7 cents at 1 volt per octave).
+  
+- `void PulseOut(int i, bool val)`
+
+  `void PulseOut1(bool val)`
+
+  `void PulseOut2(bool val)`
+  
+  
+  Set the value of a pulse output jack. Accepts a boolean, producing roughly 5V output for `true` and 0V for `false`.  
+  
+  The `PulseOut` functions change the pulse output immediately, so to avoid the possibility of very short pulses, it is recommended that the value of each Pulse output is set only once per `ProcessSample` call.
+  
+### Jack inputs
+- `int16_t AudioIn(int i)`
+
+   `int16_t AudioIn1()`
+   
+   `int16_t AudioIn2()`
+   
+   Return a signed 12-bit value (−2048 to 2047) corresponding to the `i`th audio input voltage.
+   Audio inputs are sampled at 96kHz and two adjacent samples averaged to produce the value returned by these methods.
+
+- `int16_t CVIn(int i)`
+ 
+   `int16_t CVIn1()`
+   
+   `int16_t CVIn2()`
+   
+   Return a signed 12-bit value (−2048 to 2047) corresponding to the `i`th CV input voltage.
+   CV inputs are sampled at 24kHz and a digital low pass filter is applied.
+
+- `bool PulseIn(int i)`
+  
+  `bool PulseIn1()`
+  
+  `bool PulseIn2()`
+  
+  Return the state (`true` is high, `false` is low) of the pulse input jacks.
+  
+  
+- `bool PulseInRisingEdge(int i)`
+  
+  `bool PulseIn1RisingEdge()`
+  
+  `bool PulseIn2RisingEdge()`
+  
+  Return `true` if the the state of the input jack is high this sample, but was low in the previous sample.
+   
+  
+  
+- `bool PulseInFallingEdge(int i)`
+  
+  `bool PulseIn1FallingEdge()`
+  
+  `bool PulseIn2FallingEdge()`
+  
+  Return `true` if the the state of the input jack is high this sample, but was low in the previous sample.
+  
+
+- `bool Connected(Input i)`
+
+  `bool Disconnected(Input i)`
+  
+  Return `true` if a jack is (`Connected`) or is not (`Disconnected`) plugged into the input jack identified by `i`.
+  This function requires `EnableNormalisationProbe()` to be called on the `ComputerCard` class, prior to `Run()`, otherwise jacks are always regarded as disconnected. Values of the `Input` enum are as follows:
+  
+  | `Input` |
+  |---------|
+  | `Audio1`  |
+  | `Audio2`  |
+  | `CV1`  |
+  | `CV2`  |
+  | `Pulse1`  |
+  | `Pulse2`  |
+
+### LEDs
+For all LED functions, the `index` parameter takes a value 0–5 and identifies the LED, as in the following diagram of the bottom-left corner of the Workshop System:
+```
+|
+| 0 1
+| 2 3
+| 4 5
+|______
+```
+
+- `void LedBrightness(uint32_t index, uint16_t value)`
+ 
+  Set the brightness of the LED identified by `index`. The brightness `value` ranges from 0 (off) to 4095 (full brightness).
+  
+- `void LedOn(uint32_t index, bool value = true)`
+  
+  Turn the LED identified by `index` on or (with the `value` parameter set to `false`) off.
+  
+- `void LedOff(uint32_t index)`
+
+  Turn the LED identified by `index` off.
+  
+  
+### Misc
+
+- `HardwareVersion_t HardwareVersion()`
+   
+   Returns the hardware revision of the Workshop System Computer that the code is running on.
+    | `HardwareVersion_t` | Version |
+    |---------------------|---------|
+    | `Proto1`            | 2024 Dyski prototypes and Proto 1.2 (May 2024 devkits)|
+    | `Proto2_Rev1`       | Proto 2.0.0/2.0.1/2.0.2 and December 2024 production |
+    | `Rev1_1`            | Rev 1.1, January 2025 | 
+
+   ComputerCard currently does not appear to run on systems without an EEPROM (i.e. any prior to Proto 2.0.2).
+
+- `USBPowerState_t USBPowerState()`
+   
+   Returns the mode of the USB port on the Computer.
+    | `USBPowerState_t` | State |
+    |---------------------|---------|
+    | `DFP`            | Downstream facing port (MTM Computer acting as USB host)|
+    | `UFP`       | Upstream facing port (MTM Computer acting as USB device), or, USB not connected |
+    | `Unsupported`            | Returned on hardware prior to `Rev1_1`| 
+
+- `uint64_t UniqueCardID()`
+
+   Returns a 64-bit integer unique to the program card.
+   This is the unique ID returned by the flash chip, with a scrambling function applied to ensure that all bits in the returned integer are unpredictable, even if many bits in the original unique ID are common between flash chips.
+
+- `void Abort()`
+
+   When called from `ProcessSample`, stops the processing started when `Run()` was called, and returns from the (otherwise blocking) `Run` method. This allows `Run` to be called again, potentially on a different `ComputerCard` class.
+   
+
+- `static ComputerCard* ThisPtr()`
+
+   Static member function that returns the `this` pointer of whichever `ComputerCard` instance last started audio processing. This is useful to allow C-style functions (in particular, callbacks) to access the active ComputerCard.
+   
+
+
 # [Programming for ComputerCard](#programming)
 
 ComputerCard is designed to allow audio signals (with bandwidths up to ~20kHz) to be processed at low latency. To do this, the computations for each sample must be calculated individually, by calling the users `ProcessSample()` function at 48kHz. The `ProcessSample()` function for one sample must finish before the one for the next sample starts, meaning that the user's code for each sample must execute in 1/48000th of a second, or ~20μs. This is perfectly feasible on the RP2040, but requires some attention to code performance. Specifically;
@@ -197,7 +461,7 @@ $$ \mbox{out} = (1-k)\\, \mbox{in}_1 + k\\, \mbox{in}_2.$$
 
 [^2]: Ideally, for audio signals, we'd use an energy-preserving crossfade rather than this linear one.
 
-In ComputerCard, the knobs return positive 12-bit values 0-4095, and we instead calculate: 
+In ComputerCard, the knobs return positive 12-bit values 0–4095 (though the end of knob travel may not reach either 0 or 4095), and we instead calculate: 
 ```c++
 int32_t k = KnobVal(Knob::Main);
 int32_t mix = (AudioIn1()*(4095-k) + AudioIn2()*(k)) >> 12;
@@ -208,7 +472,7 @@ AudioOut2(mix);
 
 Even though `k` is non-negative, we use an signed `int32_t` type (not `uint32_t`) because operations involving both signed and unsigned integers will often result in the signed type being converted to unsigned, which is not desired here. It's easiest just to keep everything as `int32_t`.
 
-The choice of `4095 - k` not `4096 - k` means that this crossfade perfectly isolates each of the two inputs at the ends of knob travel, at the expense of a very slight decline ($4095/4096$) in amplitude.
+The choice of `4095 - k` not `4096 - k` means that this crossfade perfectly isolates each of the two inputs at the ends of the range 0–4095, at the expense of a very slight decline ($4095/4096$) in amplitude. 
 
 Let's again examine the possibility of overflow. The multiply operations here calculate the product of signed 12-bit and unsigned 12-bit numbers, resulting in a signed 24-bit number. We then add two of these, which would in general produce up to a signed 25-bit number, but here because of the `k` and `4095-k` multiplicands, the sum is in fact signed 24-bit. This is well within the signed 32-bit range of the integer type, so there is no risk of overflow during the evaluation of the expression. Shifting right by 12 bits produces a signed 12-bit result (-2048 to 2047) which will not wrap in the `AudioOut` functions.
 
@@ -268,7 +532,7 @@ Three further comments:
 - On the RP2040, the `>>` operation on signed types rounds to negative infinity. Sometimes it may be worth adding a constant into the filter expression to alter this behaviour to round-to-nearest.  
 - The roundoff error on a low-pass filter such as this produces a very primative hysteresis-like effect, which may occasionally be useful. This is used in ComputerCard to reduce noise/jitter in knob values.
 
-### 2. Lengthy calculations
+## 2. Lengthy calculations
 Options for dealing with calculations that exceed the available ~20μs per sample are:
 - optimise these calculations, for example using lookup tables [^3]
 - offload long calculations onto the second RP2040 core.
@@ -281,5 +545,6 @@ For USB processing, the TinyUSB function `tud_task` may take longer than one sam
 
 [^3]: While floating point calculations are typically too slow to perform every sample, it's convenient to have them available for calculating lookup tables when the card first starts. Lookup tables can of course be calculated on a much more powerful computer and hard-coded as constant arrays.
 
-### 4. Putting code in RAM
+## 3. Putting code in RAM
 To force a function into RAM, rather than flash, surround the name in function definition by  [__not_in_flash_func()](https://www.raspberrypi.com/documentation/pico-sdk/runtime.html#group_pico_platform_1gad9ab05c9a8f0ab455a5e11773d610787). The `ComputerCard.h` file has various examples of this. 
+

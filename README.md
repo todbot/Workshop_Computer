@@ -15,6 +15,8 @@ At the moment, [this Google doc is the most up-to-date shortform documentation](
 
 Starter code in various platforms - Arduino, Pico SDK, CircuitPython, Micropython
 
+By far the most developed is [Chris Johnson's ComputerCard library](https://github.com/TomWhitwell/Workshop_Computer/tree/main/Demonstrations%2BHelloWorlds/PicoSDK/ComputerCard) for SDK and Arduino: 
+
 ### RELEASES 
 
 [Working and work-in-progress code for many program cards.](https://github.com/TomWhitwell/Workshop_Computer/tree/main/releases) 

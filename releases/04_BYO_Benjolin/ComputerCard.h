@@ -25,9 +25,6 @@ See examples/ directory
 #define CV_OUT_1 23
 #define CV_OUT_2 22
 
-// USB host status pin
-#define USB_HOST_STATUS 20
-
 class ComputerCard
 {
 	constexpr static int numLeds = 6;
@@ -41,9 +38,7 @@ public:
 	/// Input jack socket, used by Connected and Disconnected
 	enum Input {Audio1, Audio2, CV1, CV2, Pulse1, Pulse2};
 	/// Hardware version
-	enum HardwareVersion_t {Proto1=0x2a, Proto2_Rev1=0x30, Rev1_1=0x0C, Unknown=0xFF};
-	/// USB Power state
-	enum USBPowerState_t {DFP, UFP, Unsupported};
+	enum HardwareVersion {Proto1=0x2a, Proto2_Rev1=0x30, Unknown=0xFF};
 	
 	ComputerCard();
 
@@ -60,8 +55,7 @@ public:
 
 	/// Use before Run() to enable Connected/Disconnected detection
 	void EnableNormalisationProbe() {useNormProbe = true;}
-
-protected:
+	
 	/// Callback, called once per sample at 48kHz
 	virtual void ProcessSample() = 0;
 
@@ -72,18 +66,9 @@ protected:
 	int32_t __not_in_flash_func(KnobVal)(Knob ind) {return knobs[ind];}
 
 	/// Read switch position
-	Switch __not_in_flash_func(SwitchVal)() {return switchVal;}
-
-	/// Read switch position
-	bool __not_in_flash_func(SwitchChanged)() {return switchVal != lastSwitchVal;}
+	Switch __not_in_flash_func(SwitchVal)() {return static_cast<Switch>((knobs[3]>1000) + (knobs[3]>3000));}
 
 
-	/// Set Audio output (values -2048 to 2047)
-	void __not_in_flash_func(AudioOut)(int i, int16_t val)
-	{
-		dacOut[i] = val;
-	}
-	
 	/// Set Audio 1 output (values -2048 to 2047)
 	void __not_in_flash_func(AudioOut1)(int16_t val)
 	{
@@ -95,14 +80,6 @@ protected:
 	{
 		dacOut[1] = val;
 	}
-
-	
-	/// Set CV output (values -2048 to 2047)
-	void __not_in_flash_func(CVOut)(int i, int16_t val)
-	{
-		pwm_set_gpio_level(CV_OUT_1 - i, (2047-val)>>1);
-	}
-	
 	/// Set CV 1 output (values -2048 to 2047)
 	void __not_in_flash_func(CVOut1)(int16_t val)
 	{
@@ -115,10 +92,17 @@ protected:
 		pwm_set_gpio_level(CV_OUT_2, (2047-val)>>1);
 	}
 
-	/// Set CV 1 output from calibrated MIDI note number (values 0 to 127)
-	void __not_in_flash_func(CVOutMIDINote)(int i, uint8_t noteNum)
+
+	/// Set CV 1 output (values -2048 to 2047)
+	void __not_in_flash_func(CVOut1_calibrated)(int16_t val)
 	{
-		pwm_set_gpio_level(CV_OUT_1 - i, MIDIToDac(noteNum, 0) >> 8);
+		pwm_set_gpio_level(CV_OUT_1, (2047-val)>>1);
+	}
+	
+	/// Set CV 2 output (values -2048 to 2047)
+	void __not_in_flash_func(CVOut2_calibrated)(int16_t val)
+	{
+		pwm_set_gpio_level(CV_OUT_2, (2047-val)>>1);
 	}
 	
 	/// Set CV 1 output from calibrated MIDI note number (values 0 to 127)
@@ -133,12 +117,6 @@ protected:
 		pwm_set_gpio_level(CV_OUT_2, MIDIToDac(noteNum, 1) >> 8);
 	}
 	
-	/// Set Pulse output (true = on)
-	void __not_in_flash_func(PulseOut)(int i, bool val)
-	{
-		gpio_put(PULSE_1_RAW_OUT + i, !val);
-	}
-	
 	/// Set Pulse 1 output (true = on)
 	void __not_in_flash_func(PulseOut1)(bool val)
 	{
@@ -151,30 +129,17 @@ protected:
 		gpio_put(PULSE_2_RAW_OUT, !val);
 	}
 	
-	/// Return audio in (-2048 to 2047)
-	int16_t __not_in_flash_func(AudioIn)(int i){return i?adcInR:adcInL;}
-	
 	/// Return audio in 1 (-2048 to 2047)
 	int16_t __not_in_flash_func(AudioIn1)(){return adcInL;}
 
 	/// Return audio in 1 (-2048 to 2047)
 	int16_t __not_in_flash_func(AudioIn2)(){return adcInR;}
 
-	/// Return CV in (-2048 to 2047)
-	int16_t __not_in_flash_func(CVIn)(int i){return cv[i];}
-	
 	/// Return CV in 1 (-2048 to 2047)
 	int16_t __not_in_flash_func(CVIn1)(){return cv[0];}
 
 	/// Return CV in 2 (-2048 to 2047)
 	int16_t __not_in_flash_func(CVIn2)(){return cv[1];}
-
-	/// Read pulse in
-	bool __not_in_flash_func(PulseIn)(int i){return pulse[i];}
-	/// Return true for one sample on pulse rising edge
-	bool __not_in_flash_func(PulseInRisingEdge)(int i){return pulse[i] && !last_pulse[i];}
-	/// Return true for one sample on pulse falling edge
-	bool __not_in_flash_func(PulseInFallingEdge)(int i){return !pulse[i] && last_pulse[i];}
 
 	/// Read pulse in 1
 	bool __not_in_flash_func(PulseIn1)(){return pulse[0];}
@@ -219,28 +184,15 @@ protected:
 		pwm_set_gpio_level(leds[index], 0);
 	}
 
-	// Return power state of USB port
-	USBPowerState_t USBPowerState()
-	{
-		if (HardwareVersion() != Rev1_1)
-			return Unsupported;
-		else if (gpio_get(USB_HOST_STATUS))
-			return UFP;
-		else
-			return DFP;
-	}
+	
 
 	/// Return hardware version
-	HardwareVersion_t HardwareVersion() {return hw;}
+	HardwareVersion GetHardwareVersion() {return hw;}
 
 	/// Return ID number unique to flash card
 	uint64_t UniqueCardID()	{return uniqueID;}
 	
 	static ComputerCard *ThisPtr() {return thisptr;}
-
-	
-	void Abort();
-	
 private:
 	
 	typedef struct
@@ -271,8 +223,8 @@ private:
 	int ReadEEPROM();
 	uint32_t MIDIToDac(int midiNote, int channel);
 	
-	HardwareVersion_t hw;
-	HardwareVersion_t ProbeHardwareVersion();
+	HardwareVersion hw;
+	HardwareVersion ProbeHardwareVersion();
 	
 	int16_t dacOut[2];
 	
@@ -288,7 +240,6 @@ private:
 	volatile bool connected[6] = {0,0,0,0,0,0};
 	bool useNormProbe;
 
-	Switch switchVal, lastSwitchVal;
 	
 	volatile uint8_t runADCMode;
 
@@ -306,8 +257,6 @@ private:
 	// Convert signed int16 value into data string for DAC output
 	uint16_t __not_in_flash_func(dacval)(int16_t value, uint16_t dacChannel)
 	{
-		if (value<-2048) value = -2048;
-		if (value > 2047) value = 2047;
 		return (dacChannel | 0x3000) | (((uint16_t)((value & 0x0FFF) + 0x800)) & 0x0FFF);
 	}
 	uint32_t next_norm_probe();
@@ -321,7 +270,6 @@ private:
 		thisptr->BufferFull();
 	}
 	static ComputerCard *thisptr;
-
 };
 
 
@@ -344,10 +292,11 @@ private:
 #define MX_B 25
 
 // ADC input pins
-#define AUDIO_L_IN_1 27
-#define AUDIO_R_IN_1 26
+#define AUDIO_L_IN_1 26
+#define AUDIO_R_IN_1 27
 #define MUX_IO_1 28
 #define MUX_IO_2 29
+
 
 #define DAC_CHANNEL_A 0x0000
 #define DAC_CHANNEL_B 0x8000
@@ -473,33 +422,20 @@ void __not_in_flash_func(ComputerCard::AudioWorker)()
 			adc_set_round_robin(0b0001111U);
 			adc_run(true);
 		}
-		else if (runADCMode == RUN_ADC_MODE_ADC_STOPPED)
-		{
-			break;
-		}
-		   
-
 	}
 }
 
-void ComputerCard::Abort()
-{
-	runADCMode = RUN_ADC_MODE_REQUEST_ADC_STOP;
-}
-
-	  
 
 // Per-audio-sample ISR, called when two sets of ADC samples have been collected from all four inputs
 void __not_in_flash_func(ComputerCard::BufferFull)()
 {
-	static int startupCounter = 8; // Decreases by 1 each sample, can do startup things when nonzero.
 	static int mux_state = 0;
 	static int norm_probe_count = 0;
 
 	// Internal variables for IIR filters on knobs/cv
 	static volatile int32_t knobssm[4] = { 0, 0, 0, 0 };
 	static volatile int32_t cvsm[2] = { 0, 0 };
-	__attribute__((unused)) static int np = 0, np1 = 0, np2 = 0;
+	static int np = 0, np1 = 0, np2 = 0;
 
 	adc_select_input(0);
 
@@ -521,21 +457,14 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 
 	// Set CV inputs, with ~240Hz LPF on CV input
 	int cvi = mux_state % 2;
-
-	// Attempted compensation of ADC DNL errors. Not really tested.
-	uint16_t adc512=ADC_Buffer[cpuPhase][3]+512;
-	if (!(adc512 % 0x01FF)) ADC_Buffer[cpuPhase][3] += 4;
-	ADC_Buffer[cpuPhase][3] += (adc512>>10) << 3;
-	
 	cvsm[cvi] = (15 * (cvsm[cvi]) + 16 * ADC_Buffer[cpuPhase][3]) >> 4;
 	cv[cvi] = 2048 - (cvsm[cvi] >> 4);
 
 
-	// Set audio inputs, by averaging the two samples collected.
-	// Invert to counteract inverting op-amp input configuration
-	adcInR = -(((ADC_Buffer[cpuPhase][0] + ADC_Buffer[cpuPhase][4]) - 0x1000) >> 1);
+	// Set audio inputs, by averaging the two samples collected
+	adcInR = ((ADC_Buffer[cpuPhase][0] + ADC_Buffer[cpuPhase][4]) - 0x1000) >> 1;
 
-	adcInL = -(((ADC_Buffer[cpuPhase][1] + ADC_Buffer[cpuPhase][5]) - 0x1000) >> 1);
+	adcInL = ((ADC_Buffer[cpuPhase][1] + ADC_Buffer[cpuPhase][5]) - 0x1000) >> 1;
 
 	// Set pulse inputs
 	last_pulse[0] = pulse[0];
@@ -545,18 +474,10 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 
 	// Set knobs, with ~60Hz LPF
 	int knob = mux_state;
-	knobssm[knob] = (127 * (knobssm[knob]) + 16 * ADC_Buffer[cpuPhase][6]) >> 7;
+	knobssm[knob] = (127 * (knobssm[knob]) + 16 * ADC_Buffer[cpuPhase][2]) >> 7;
 	knobs[knob] = knobssm[knob] >> 4;
 
-	// Set switch value
-	switchVal = static_cast<Switch>((knobs[3]>1000) + (knobs[3]>3000));
-	if (startupCounter)
-	{
-		// Don't detect switch changes in first few cycles
-		lastSwitchVal = switchVal;
-		// Should initialise knob and CV smoothing filters here too
-	}
-	
+
 	////////////////////////////
 	// Normalisation probe
 
@@ -608,70 +529,48 @@ void __not_in_flash_func(ComputerCard::BufferFull)()
 	// Collect DSP outputs and put them in the DAC SPI buffer
 	// CV/Pulse outputs are done immediately in ProcessSample
 
-	// Invert dacout to counteract inverting output configuration
-	SPI_Buffer[cpuPhase][0] = dacval(-dacOut[0], DAC_CHANNEL_A);
-	SPI_Buffer[cpuPhase][1] = dacval(-dacOut[1], DAC_CHANNEL_B);
+	SPI_Buffer[cpuPhase][0] = dacval(dacOut[0], DAC_CHANNEL_A);
+	SPI_Buffer[cpuPhase][1] = dacval(dacOut[1], DAC_CHANNEL_B);
 
 	mux_state = next_mux_state;
 
-	// If Abort called, stop ADC and DMA
+	// Indicate to usb core that we've finished running this sample.
 	if (runADCMode == RUN_ADC_MODE_REQUEST_ADC_STOP)
 	{
 		adc_run(false);
 		adc_set_round_robin(0);
 		adc_select_input(0);
 
-		dma_hw->ints0 = 1u << adc_dma; // reset adc interrupt flag
-		dma_channel_cleanup(adc_dma);
-		dma_channel_cleanup(spi_dma);
-		irq_remove_handler(DMA_IRQ_0, ComputerCard::AudioCallback);
-		
 		runADCMode = RUN_ADC_MODE_ADC_STOPPED;
 	}
 
 	norm_probe_count = (norm_probe_count + 1) & 0xF;
-
-	lastSwitchVal = switchVal;
-	
-	if (startupCounter) startupCounter--;
 }
 
-ComputerCard::HardwareVersion_t ComputerCard::ProbeHardwareVersion()
+ComputerCard::HardwareVersion ComputerCard::ProbeHardwareVersion()
 {
-	// Enable pull-downs, and measure
 	gpio_set_pulls(BOARD_ID_0, false, true);
 	gpio_set_pulls(BOARD_ID_1, false, true);
 	gpio_set_pulls(BOARD_ID_2, false, true);
 	sleep_us(1);
-
-	// Pull-down state in bits 0, 2, 4
-	uint8_t pd = gpio_get(BOARD_ID_0) | (gpio_get(BOARD_ID_1) << 2) | (gpio_get(BOARD_ID_2) << 4);
-	
-	// Enable pull-ups, and measure
+	uint8_t pd = gpio_get(BOARD_ID_0) | (gpio_get(BOARD_ID_0) << 2) | (gpio_get(BOARD_ID_2) << 4);
 	gpio_set_pulls(BOARD_ID_0, true, false);
 	gpio_set_pulls(BOARD_ID_1, true, false);
 	gpio_set_pulls(BOARD_ID_2, true, false);
 	sleep_us(1);
-
-	// Pull-up state in bits 1, 3, 5
-	uint8_t pu = (gpio_get(BOARD_ID_0) << 1) | (gpio_get(BOARD_ID_1) << 3) | (gpio_get(BOARD_ID_2) << 5);
-
-	// Combine to give 6-bit ID
-	uint8_t id = pd | pu;
-
-	// Set pull-downs
+	uint8_t pu = (gpio_get(BOARD_ID_0) << 1) | (gpio_get(BOARD_ID_0) << 3) | (gpio_get(BOARD_ID_2) << 5);
 	gpio_set_pulls(BOARD_ID_0, false, true);
 	gpio_set_pulls(BOARD_ID_1, false, true);
 	gpio_set_pulls(BOARD_ID_2, false, true);
+	uint8_t id = pd | pu;
 
 	switch (id)
 	{
-	case Proto1:
-	case Proto2_Rev1:
-	case Rev1_1:
-		return static_cast<ComputerCard::HardwareVersion_t>(id);
+	case HardwareVersion::Proto1:
+	case HardwareVersion::Proto2_Rev1:
+		return static_cast<ComputerCard::HardwareVersion>(id);
 	default:
-		return Unknown;
+		return HardwareVersion::Unknown;
 	}
 }
 
@@ -683,6 +582,8 @@ ComputerCard::ComputerCard()
 	adc_run(false);
 	adc_select_input(0);
 
+	sleep_ms(50);
+	
 
 	useNormProbe = false;
 	for (int i=0; i<6; i++)
@@ -713,18 +614,11 @@ ComputerCard::ComputerCard()
 
 	
 	// Board version ID pins
-	gpio_init(BOARD_ID_0);
-	gpio_init(BOARD_ID_1);
-	gpio_init(BOARD_ID_2);
 	gpio_set_dir(BOARD_ID_0, GPIO_IN);
 	gpio_set_dir(BOARD_ID_1, GPIO_IN);
 	gpio_set_dir(BOARD_ID_2, GPIO_IN);
 	hw = ProbeHardwareVersion();
 	
-	// USB host status pin
-	gpio_init(USB_HOST_STATUS);
-	gpio_disable_pulls(USB_HOST_STATUS);
-
 	// Normalisation probe pin
 	gpio_init(NORMALISATION_PROBE);
 	gpio_set_dir(NORMALISATION_PROBE, GPIO_OUT);
@@ -941,7 +835,7 @@ void ComputerCard::CalcCalCoeffs(int channel)
 
 	for (int i = 0; i < N; i++)
 	{
-		float v = calibrationTable[channel][i].voltage * 0.1f;
+		float v = calibrationTable[channel][i].voltage * 0.1;
 		float dac = calibrationTable[channel][i].dacSetting;
 		sumV += v;
 		sumDAC += dac;
@@ -960,8 +854,8 @@ void ComputerCard::CalcCalCoeffs(int channel)
 	}
 	calCoeffs[channel].b = (sumDAC - calCoeffs[channel].m * sumV) / N;
 
-	calCoeffs[channel].mi = int32_t(calCoeffs[channel].m * 1.333333333333333f + 0.5f);
-	calCoeffs[channel].bi = int32_t(calCoeffs[channel].b + 0.5f);
+	calCoeffs[channel].mi = (calCoeffs[channel].m * 1.333333333333333f + 0.5f);
+	calCoeffs[channel].bi = calCoeffs[channel].b + 0.5f;
 }
 
 

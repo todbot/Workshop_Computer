@@ -100,18 +100,24 @@ protected:
 	/// Set CV output (values -2048 to 2047)
 	void __not_in_flash_func(CVOut)(int i, int16_t val)
 	{
+		if (val<-2048) val = -2048;
+		if (val > 2047) val = 2047;
 		pwm_set_gpio_level(CV_OUT_1 - i, (2047-val)>>1);
 	}
 	
 	/// Set CV 1 output (values -2048 to 2047)
 	void __not_in_flash_func(CVOut1)(int16_t val)
 	{
+		if (val<-2048) val = -2048;
+		if (val > 2047) val = 2047;
 		pwm_set_gpio_level(CV_OUT_1, (2047-val)>>1);
 	}
 	
 	/// Set CV 2 output (values -2048 to 2047)
 	void __not_in_flash_func(CVOut2)(int16_t val)
 	{
+		if (val<-2048) val = -2048;
+		if (val > 2047) val = 2047;
 		pwm_set_gpio_level(CV_OUT_2, (2047-val)>>1);
 	}
 
