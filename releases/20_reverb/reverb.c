@@ -58,6 +58,8 @@ The function of knobs, CV and Pulse input/output are controlled by MIDI SysEx co
 #include <math.h>
 #include <string.h>
 
+#include "usb_midi_host.h"
+
 // Variables for passing debug info from audio thread to usb thread
 volatile uint32_t pf1 = 0, pf2 = 0, pfflag = 0;
 
@@ -72,6 +74,7 @@ volatile uint32_t pf1 = 0, pf2 = 0, pfflag = 0;
 #define MIDI_NOTE_ON 0x90
 #define MIDI_NOTE_OFF 0x80
 #define MIDI_CC 0xB0
+#define MIDI_PITCHBEND 0xE0
 
 #define OPT_PITCH OPT_PITCH_OF_MIDI_NOTE
 
@@ -92,6 +95,9 @@ divider pulseout1_divider, pulseout2_divider, cvout1_divider, cvout2_divider, tm
 turing_machine tm;
 bernoulli_gate bg;
 noise_gate ng;
+
+// lookup for powers of two
+uint32_t pow2_128[128];
 
 volatile int32_t knobs[4] = { 0, 0, 0, 0 }; // 0-4095
 volatile bool pulse[2] = { 0, 0 };
@@ -116,7 +122,14 @@ uint16_t SPI_Buffer[2][2];
 
 uint8_t adc_dma, spi_dma; // DMA ids
 
+unsigned allLedFlashTimer = 0;
 
+volatile uint8_t midiDeviceConnected=0;
+int32_t midiDeviceOutputCable=0;
+uint8_t midiDeviceAddress=0;
+
+int32_t midiPitchbend = 0;
+int32_t midiNotenum = 0;
 
 uint8_t dmaPhase = 0;
 
@@ -153,8 +166,11 @@ void __not_in_flash_func(buffer_full)()
 	debug_pin(DEBUG_2, true);
 	static int mux_state = 0;
 	static int norm_probe_count = 0;
-	static int np = 0, np1 = 0, np2 = 0;
 
+	#ifdef ENABLE_UART_DEBUGGING
+	static int np = 0, np1 = 0, np2 = 0;
+	#endif
+	
 	// Internal variables for IIR filters on knobs/cv
 	static volatile int32_t knobssm[4] = { 0, 0, 0, 0 };
 	static volatile int32_t cvsm[2] = { 0, 0 };
@@ -337,11 +353,10 @@ int32_t __not_in_flash_func(continuous_source_from_config)(int offset)
 	}
 	return ret;
 }
-
+/*
 // Returns tempo in Hz from a "TempoSource" dropdown
 float __not_in_flash_func(tempo_source_from_config)(int offset)
 {
-	int32_t ret = 0;
 	if (config[offset] == OPT_A_CONSTANT)
 	{
 		int val = 100 * config[offset + 1]
@@ -355,6 +370,58 @@ float __not_in_flash_func(tempo_source_from_config)(int offset)
 		// tempo from knob or CV: use exponential mapping
 		int32_t int_clock_tempo = continuous_source_from_config(offset);
 		return expf(1.9531e-3f * int_clock_tempo - 3.0f);
+	}
+}
+*/
+
+
+// Return integer part of 2^(in/4096) (approximate)
+// 7-bit lookup table (128 entries), 5-bit (32-step) linear interpolation between steps
+uint32_t __not_in_flash_func(Pow2)(uint32_t in)
+{
+	uint32_t oct = in >> 12; // floor(in/4096)
+
+	// Table index and value of lookup
+	uint32_t ind1 = (in & 0xFE0) >> 5; // 0xFE0 = 111111100000
+	uint32_t val1 = pow2_128[ind1];
+
+	// Next lookup
+	uint32_t ind2 = (ind1 + 1) & 0x7F; //
+	uint32_t val2 = pow2_128[ind2];
+	if (ind2 == 0) val2 <<= 1; // interpolating between end of one octave and the start of another
+
+	// Linearly interpolate with 32 steps
+	uint32_t subsample = in & 0x1F;
+	uint32_t val = val1 * (32 - subsample) + val2 * subsample;
+
+	val >>= 31 - oct;
+
+	return val;
+}
+
+// Returns tempo as increment of a 32-bit wrapping counter, from a "TempoSource" dropdown
+uint32_t __not_in_flash_func(tempo_source_from_config_incr)(int offset)
+{
+	if (config[offset] == OPT_A_CONSTANT)
+	{
+		// Use this slightly odd way of summing digits for maximum precision
+		if (config[offset + 4] == OPT_HZ) // Hz
+		{
+			return config[offset + 1]*8947849 + config[offset + 2]*894785 + config[offset + 3]*89479;
+		}
+		else // BPM
+		{
+			return config[offset + 1]*149131 + config[offset + 2]*14913 + config[offset + 3]*1491;
+		}
+	}
+	else
+	{
+		// tempo from knob or CV: use exponential mapping
+		// Range is from ~0.05 Hz = 1/20Hz to 150Hz
+		// That corresponds to an increment of 4454.87 to 13252516.1
+		// That's a range of about 2^11.5
+		int32_t int_clock_tempo = continuous_source_from_config(offset);
+		return Pow2(48621 + 12*int_clock_tempo);
 	}
 }
 
@@ -587,23 +654,116 @@ void process_sys_ex_command(uint8_t *packet)
 	}
 }
 
-void midi_task()
+void midi_device_task()
 {
 	// Read incoming packet if availabie
 	while (tud_midi_available())
 	{
-		uint32_t bytes_read = tud_midi_stream_read(packet, sizeof(packet));
+		uint32_t bytesToProcess = tud_midi_stream_read(packet, sizeof(packet));
 
-		if (packet[0] == 0xF0) // If SysEx, handle with standard routine
+		uint8_t *bufferPtr = packet;
+		
+		while (bytesToProcess > 0)
 		{
-			process_sys_ex_command(packet);
-		}
-		else // else pass on to application midi message handler
-		{
-			handle_midi_message(packet);
+			if (packet[0] == 0xF0) // If SysEx, handle with standard routine
+			{
+				process_sys_ex_command(bufferPtr);
+			}
+			else // else pass on to application midi message handler
+			{
+				handle_midi_message(bufferPtr);
+			}
+
+			// Move pointer to next midi message in buffer, if it exists
+			// by scanning until we see a MIDI command byte (most significant bit set)
+			do 
+			{
+				bufferPtr++;
+				bytesToProcess--;
+			} while (bytesToProcess > 0 && (!(*bufferPtr & 0x80)));			
 		}
 	}
 }
+
+
+////////////////////////////////////////
+// MIDI host callbacks
+void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx)
+{
+	(void)in_ep; (void)out_ep; (void)num_cables_rx; // avoid unused variable warnings
+
+	
+	if (midiDeviceAddress == 0)
+	{
+		midiDeviceAddress = dev_addr;
+		midiDeviceConnected = 1;
+		midiDeviceOutputCable = num_cables_tx - 1; // sets to -1 if device has no midi
+	}
+}
+
+
+void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance)
+{
+	(void)instance;
+	
+	if (dev_addr == midiDeviceAddress)
+	{
+		midiDeviceAddress = 0;
+		midiDeviceConnected = 0;
+		midiDeviceOutputCable = -1;
+	}
+}
+
+// Handle host-mode incoming midi message
+void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets)
+{
+	if (midiDeviceAddress != dev_addr)
+		return;
+
+	if (num_packets == 0)
+		return;
+	
+	uint8_t cable_num;
+	static uint8_t buffer[512];
+	while (1)
+	{
+		int32_t bytesToProcess = tuh_midi_stream_read(dev_addr, &cable_num, buffer, sizeof(buffer));
+		uint8_t *bptr = buffer;
+
+		if (bytesToProcess == 0)
+		{
+			break;
+		}
+		
+		while (bytesToProcess > 0)
+		{
+			if (bptr[0] == 0xF0)
+			{
+				process_sys_ex_command(bptr);
+			}
+			else
+			{
+				handle_midi_message(bptr);
+			}
+
+			// move pointer along until we reach an other MIDI command byte
+			do 
+			{
+				bptr++;
+				bytesToProcess--;
+			} while (bytesToProcess > 0 && (!(*bptr & 0x80)));			
+		}
+
+	}
+}
+
+void tuh_midi_tx_cb(uint8_t dev_addr)
+{
+    (void)dev_addr;
+}
+
+
+
 #endif
 
 
@@ -638,6 +798,7 @@ bool midi_cc(uint8_t *packet, int sen)
 	return (config[sen] == ccNum) && midi_channel(packet, sen + 1);
 }
 
+// Calls on/off function only when number of notes down moves towards/away from zero
 void gate_counter(bool noteOn, int *count, void (*fn)(bool))
 {
 	if (noteOn)
@@ -669,8 +830,30 @@ void handle_midi_message(uint8_t *packet)
 		// Count note on with velocity zero as note off
 		bool noteOn = (messageType == MIDI_NOTE_ON) && (packet[2] != 0);
 
-		if (config[SEN_PULSE_OUT_1 + 1] == OPT_MIDI_NOTE && midi_gate(packet, SEN_PULSE_OUT_1 + 2)) gate_counter(noteOn, &n_notes_on_pulse1, PulseOut1);
-		if (config[SEN_PULSE_OUT_2 + 1] == OPT_MIDI_NOTE && midi_gate(packet, SEN_PULSE_OUT_2 + 2)) gate_counter(noteOn, &n_notes_on_pulse2, PulseOut2);
+		if (config[SEN_PULSE_OUT_1 + 1] == OPT_MIDI_NOTE && midi_gate(packet, SEN_PULSE_OUT_1 + 2))
+		{
+			if (config[SEN_PULSE_OUT_1] == OPT_TRIGGER && noteOn)
+			{
+				lastPulseOut1 = false;
+				PulseOut1(true);
+			}
+			else
+			{
+				gate_counter(noteOn, &n_notes_on_pulse1, PulseOut1);
+			}
+		}
+		if (config[SEN_PULSE_OUT_2 + 1] == OPT_MIDI_NOTE && midi_gate(packet, SEN_PULSE_OUT_2 + 2))
+		{
+			if (config[SEN_PULSE_OUT_2] == OPT_TRIGGER && noteOn)
+			{
+				lastPulseOut2 = false;
+				PulseOut2(true);
+			}
+			else
+			{
+				gate_counter(noteOn, &n_notes_on_pulse2, PulseOut2);
+			}
+		}
 		if (config[SEN_CV_OUT_1] == OPT_MIDI_NOTE && midi_gate(packet, SEN_CV_OUT_1 + 1)) gate_counter(noteOn, &n_notes_on_cv1, CVOut1Gate);
 		if (config[SEN_CV_OUT_2] == OPT_MIDI_NOTE && midi_gate(packet, SEN_CV_OUT_2 + 1)) gate_counter(noteOn, &n_notes_on_cv2, CVOut2Gate);
 
@@ -679,16 +862,16 @@ void handle_midi_message(uint8_t *packet)
 			tm_step();
 
 		// Pitch CV
-		uint16_t noteNum = packet[1];
+		midiNotenum = packet[1];
 		if (noteOn)
 		{
 			if (config[SEN_CV_OUT_1] == OPT_PITCH && midi_channel(packet, SEN_CV_OUT_1 + 1))
 			{
-				CVOut1(midiToDac(noteNum, 0) >> 8);
+				CVOut1(midiToDac8((midiNotenum<<8)+(midiPitchbend>>4), 0) >> 8);
 			}
 			if (config[SEN_CV_OUT_2] == OPT_PITCH && midi_channel(packet, SEN_CV_OUT_2 + 1))
 			{
-				CVOut2(midiToDac(noteNum, 1) >> 8);
+				CVOut2(midiToDac8((midiNotenum<<8)+(midiPitchbend>>4), 1) >> 8);
 			}
 		}
 	}
@@ -697,6 +880,18 @@ void handle_midi_message(uint8_t *packet)
 		uint8_t ccVal = packet[2];
 		if (config[SEN_CV_OUT_1] == OPT_MIDI_CC && midi_cc(packet, SEN_CV_OUT_1 + 1)) CVOut1(1024 - ccVal * 8);
 		if (config[SEN_CV_OUT_2] == OPT_MIDI_CC && midi_cc(packet, SEN_CV_OUT_2 + 1)) CVOut2(1024 - ccVal * 8);
+	}
+	else if (messageType == MIDI_PITCHBEND)
+	{
+		midiPitchbend =  packet[1] + (packet[2]<<7) - 8192;
+		if (config[SEN_CV_OUT_1] == OPT_PITCH && midi_channel(packet, SEN_CV_OUT_1 + 1))
+		{		
+			CVOut1(midiToDac8((midiNotenum<<8)+(midiPitchbend>>4), 0) >> 8);
+		}
+		if (config[SEN_CV_OUT_2] == OPT_PITCH && midi_channel(packet, SEN_CV_OUT_2 + 1))
+		{
+			CVOut2(midiToDac8((midiNotenum<<8)+(midiPitchbend>>4), 1) >> 8);
+		}
 	}
 }
 
@@ -718,13 +913,15 @@ void post_flash_processing()
 // Processing after config changed
 void post_config_processing()
 {
-	clock_set_freq_hz(&clk[0], tempo_source_from_config(SEN_CLKA_TEMPO));
-	clock_set_freq_hz(&clk[1], tempo_source_from_config(SEN_CLKB_TEMPO));
+	clock_set_freq_incr(&clk[0], tempo_source_from_config_incr(SEN_CLKA_TEMPO));
+	clock_set_freq_incr(&clk[1], tempo_source_from_config_incr(SEN_CLKB_TEMPO));
 
 	turing_machine_set_length(&tm, config[SEN_TM_LENGTH]);
 
 	bernoulli_gate_set_toggle(&bg, config[SEN_BG_OPTS]);
 	bernoulli_gate_set_and_with_input(&bg, config[SEN_BG_OPTS + 1]);
+
+	allLedFlashTimer = 4800;
 }
 
 
@@ -737,9 +934,46 @@ void usb_worker()
 	inDefaultConfigLoad = 0;
 	set_config_from_flash();
 
+
+	// Precalculate exponential lookup table, used only by this core.
+	float f = 67108864; // 2^26
+	for (int i = 0; i < 128; i++)
+	{
+		pow2_128[i] = (uint32_t)f;
+		f *= 1.005429901112803f; // 2^(1/128)
+	}
+
+		
+	sleep_us(100000); // wait 0.1s
 #ifdef ENABLE_MIDI
+
+	// work out MIDI host status
+	uint8_t boardid = GetBoardID();
+	bool isHost;
+	if (boardid == BOARD_PROTO_1 || boardid == BOARD_PROTO_2_0)
+	{
+		// USB host mode not supported on 2024 boards
+		isHost = false;
+	}
+	else if (gpio_get(USB_HOST_STATUS))
+	{
+		isHost = false; // 2025 (or later) board, upstream facing port
+	}
+	else
+	{
+		isHost = true; // 2025 (or later) board, downstream facing port
+	}
+
+	if (isHost)
+	{
+		tuh_init(TUH_OPT_RHPORT);
+	}
+	else
+	{
+		tud_init(TUD_OPT_RHPORT);
+	}
+
 	board_init();
-	tusb_init();
 #endif
 
 	// If switch held down (momentary) for 0.1s at startup,
@@ -760,7 +994,7 @@ void usb_worker()
 		if (loadDefaultConfig)
 		{
 			inDefaultConfigLoad = 1;
-			sleep_us(100000); // wait 0.1s
+			sleep_us(50000); // wait 0.05s
 			set_default_config();
 			save_config_to_flash();
 		}
@@ -770,17 +1004,28 @@ void usb_worker()
 	{
 		delayVal = 1664525 * delayVal + 1013904223;
 #ifdef ENABLE_MIDI
-		tud_task();
-		midi_task();
+		if (isHost)
+		{
+			tuh_task();
+		}
+		else
+		{
+			tud_task();
+			midi_device_task();
+		}
 #endif
 
-		// Do this processing in the second core, as it's a expensive
-		// floating point calculation
-		clock_set_freq_hz(&clk[0], tempo_source_from_config(SEN_CLKA_TEMPO));
-		clock_set_freq_hz(&clk[1], tempo_source_from_config(SEN_CLKB_TEMPO));
+		// Do this processing in the second core, as it's a relatively expensive calculation
+		// though should be quicker now it is not floating point
+//		clock_set_freq_hz(&clk[0], tempo_source_from_config(SEN_CLKA_TEMPO));
+//		clock_set_freq_hz(&clk[1], tempo_source_from_config(SEN_CLKB_TEMPO));
 
+		clock_set_freq_incr(&clk[0], tempo_source_from_config_incr(SEN_CLKA_TEMPO));
+		clock_set_freq_incr(&clk[1], tempo_source_from_config_incr(SEN_CLKB_TEMPO));
+		
 		// Stall for a random amount of time, up to 255us, to minimise tones in audio interference
-		sleep_us(delayVal & 0xFF);
+		// Don't do this for MIDI host, as I think this is slightly more timing-sensitive
+		if (!isHost) sleep_us(delayVal & 0xFF);
 
 		if (pfflag == 1)
 		{
@@ -1234,6 +1479,12 @@ void __not_in_flash_func(process_sample)()
 		}
 	}
 
+	if (allLedFlashTimer)
+	{
+		for (int i=0; i<6; i++) gpio_put(leds[i],true);
+		allLedFlashTimer--;
+	}
+	
 	debug_pin(DEBUG_1, false);
 }
 
@@ -1244,8 +1495,10 @@ void __not_in_flash_func(process_sample)()
 
 int main()
 {
-	// Run at 144MHz, mild overclock
-	set_sys_clock_khz(144000, true);
+	// Run at 192MHz, near max clock as of pico-sdk 2.1.1
+	// Divides sample rate of 48kHz exactly, which helps remove tones in ADC input.
+	// https://github.com/raspberrypi/pico-sdk/releases/tag/2.1.1
+	set_sys_clock_khz(192000, true);
 
 	adc_run(false);
 	adc_select_input(0);
