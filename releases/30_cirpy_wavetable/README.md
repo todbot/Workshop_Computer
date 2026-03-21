@@ -1,6 +1,6 @@
 # 30 - cirpy_wavetable 
 
-Wavetable oscillator that using wavetables from Plaits, Braids, and Microwave, 
+Wavetable oscillator that uses wavetables from Plaits, Braids, and Microwave, 
 or any other [wavetable WAVs from waveeditonline](http://waveeditonline.com/index-17.html)
 
 Video demo1: https://youtu.be/Y7sOgAC92XU
