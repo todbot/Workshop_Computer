@@ -117,10 +117,10 @@ HARDWARE_UNKNOWN = 0xFF
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def map_range(s, a1, a2, b1, b2):
     """Linear interpolation, like Arduino map()."""
     return b1 + ((s - a1) * (b2 - b1) / (a2 - a1))
-
 
 def clamp(value, lo, hi):
     """Clamp a value to [lo, hi]."""
@@ -129,7 +129,6 @@ def clamp(value, lo, hi):
     if value > hi:
         return hi
     return value
-
 
 def gamma_correct(x):
     """Simple quadratic LED gamma correction. Input/output 0-65535."""
@@ -204,7 +203,9 @@ class Computer:
     _CV_DAC_MAX = 524287   # 19-bit sigma-delta range
     _CV_DAC_MID = 262144   # ~0V in 19-bit space
 
-    def __init__(self, read_calibration=True):
+    def __init__(self, read_calibration=True,
+                 dac_voice_count=4, dac_buffer_size=2048,
+                 dac_sample_rate=22050, dac_bits_per_sample=16):
         # ---------------------------------------------------------------
         # Internal state (all in native hardware resolution)
         # ---------------------------------------------------------------
@@ -260,6 +261,17 @@ class Computer:
         # ---------------------------------------------------------------
         self._cv_1_pwm = pwmio.PWMOut(CV_OUT_1, frequency=125_000, duty_cycle=32768)
         self._cv_2_pwm = pwmio.PWMOut(CV_OUT_2, frequency=125_000, duty_cycle=32768)
+
+        # DAC MCP4822 setup as audio streaming
+        self.audio = mtm_hardware.DACOut(clock=DAC_SCK, mosi=DAC_SDI, cs=DAC_CS)
+        self.mixer = audiomixer.Mixer(voice_count=dac_voice_count,
+                                      buffer_size=dac_buffer_size,
+                                      bits_per_sample=dac_bits_per_sample,
+                                      samples_signed=True,
+                                      sample_rate=dac_sample_rate,
+                                      channel_count=2)
+        self.audio.play(self.mixer)
+
 
         # EEPROM (I2C) and calibration
         self._i2c = None
@@ -544,37 +556,16 @@ class Computer:
 
     # ===================================================================
 
-    # def audio_out(self, channel, val):
-    #     """
-    #     Write to MCP4822 audio DAC. Value: 0-65535 (CircuitPython convention,
-    #     32768 = zero crossing). Channel: 0 (A) or 1 (B).
-
-    #     Note: In the C++ library this is driven by DMA at 48kHz.
-    #     In CircuitPython, call this manually or use pulse_outs_to_audio()
-    #     for audiopwmio-based playback instead.
-    #     """
-    #     # Convert 16-bit unsigned to signed 12-bit (-2048..2047)
-    #     signed_12 = (clamp(int(val), 0, 65535) >> 4) - 2048
-    #     # Invert to counteract inverting output configuration
-    #     signed_12 = -signed_12
-    #     dac_channel = 0x0000 if channel == 0 else 0x8000
-    #     dac_data = (dac_channel | 0x3000) | (((signed_12 & 0x0FFF) + 0x800) & 0x0FFF)
-    #     self._dac_write_raw(dac_data)
-
-    # def _dac_write_raw(self, data_16bit):
-    #     """Write a raw 16-bit value to the MCP4822."""
-    #     buf = bytes((data_16bit >> 8, data_16bit & 0xFF))
-    #     if self._dac_spi.try_lock():
-    #         self._dac_cs.value = False
-    #         self._dac_spi.write(buf)
-    #         self._dac_cs.value = True
-    #         self._dac_spi.unlock()
+    def play_audio(self, sample, loop=True, mixer_channel=0):
+        """Play an audio sample out the DAC"""
+        self.mixer.voice[mixer_channel].play(sample, loop=loop)
+            
 
     # ===================================================================
     # Audio via audiopwmio (CircuitPython-specific helper)
     # ===================================================================
 
-    def pulse_outs_to_audio(self, sample_rate=22050, voice_count=5,
+    def pulse_outs_to_audio(self, sample_rate=22050, voice_count=4,
                             channel_count=2):
         """
         Repurpose pulse output pins for PWM audio playback.
@@ -590,8 +581,8 @@ class Computer:
         if self._pulse_2_out:
             self._pulse_2_out.deinit()
             self._pulse_2_out = None
-        if hasattr(self, 'audio') and self.audio:
-            self.audio.deinit()
+        if hasattr(self, 'audio_pwm') and self.audio_pwm:
+            self.audio_pwm.deinit()
 
         self.audio_pwm = audiopwmio.PWMAudioOut(
             left_channel=PULSE_1_RAW_OUT,
@@ -693,8 +684,8 @@ class Computer:
             self._calc_cal_coeffs(ch)
 
         self._cv_outs_calibrated = True
-        print("EEPROM: calibration loaded OK")
-
+        #print("EEPROM: calibration loaded OK")
+        
     def _calc_cal_coeffs(self, channel):
         """
         Compute linear regression coefficients from calibration points.
