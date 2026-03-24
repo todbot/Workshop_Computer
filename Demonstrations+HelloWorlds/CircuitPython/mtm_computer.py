@@ -43,11 +43,11 @@ import audiopwmio
 import audiomixer
 
 try:
-    import mtm_hardware 
-    _HAS_MTM_HARDWRE = True
+    import mcp4822
+    _HAS_MCP4822 = True
 except ImportError:
-    _HAS_MTM_HARDWARE = False
-    print("No mtm_hardware module, no audio out via DAC")
+    _HAS_MCP4822 = False
+    print("No mcp4822 module, no audio out via DAC")
 
 # ---------------------------------------------------------------------------
 # Pin definitions (matching ComputerCard.h)
@@ -263,14 +263,15 @@ class Computer:
         self._cv_2_pwm = pwmio.PWMOut(CV_OUT_2, frequency=125_000, duty_cycle=32768)
 
         # DAC MCP4822 setup as audio streaming
-        self.audio = mtm_hardware.DACOut(clock=DAC_SCK, mosi=DAC_SDI, cs=DAC_CS)
-        self.mixer = audiomixer.Mixer(voice_count=dac_voice_count,
-                                      buffer_size=dac_buffer_size,
-                                      bits_per_sample=dac_bits_per_sample,
-                                      samples_signed=True,
-                                      sample_rate=dac_sample_rate,
-                                      channel_count=2)
-        self.audio.play(self.mixer)
+        if _HAS_MCP4822:
+            self.audio = mcp4822.MCP4822(clock=DAC_SCK, mosi=DAC_SDI, cs=DAC_CS)
+            self.mixer = audiomixer.Mixer(voice_count=dac_voice_count,
+                                          buffer_size=dac_buffer_size,
+                                          bits_per_sample=dac_bits_per_sample,
+                                          samples_signed=True,
+                                          sample_rate=dac_sample_rate,
+                                          channel_count=2)
+            self.audio.play(self.mixer)
 
 
         # EEPROM (I2C) and calibration
