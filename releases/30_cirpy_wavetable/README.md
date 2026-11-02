@@ -15,16 +15,17 @@ Video demo2: https://youtu.be/Nxx_5Xhv1X8
   - Z switch down -- selects next wavetable
   - Z switch up   -- toggles quantized notes or not on CV 1 Input
   
-  - CV 1 In     -- pitch (0-5V) should kinda track 1V/oct, with nothing plugged in note = 36 MIDI
+  - CV 1 In     -- pitch, calibrated 1V/oct (0V = MIDI note 12), with nothing plugged in note = 36 MIDI
   - CV 2 In     -- adds to main knob to control wavetable position
 
   - CV 1 Out    -- reflects current wavetable position
   - CV 2 Out    -- reflects wavemod LFO
   
-  - Pulse 1 & 2 Out -- PWM audio out
+  - Audio 1 & 2 Out -- audio out
 
 ## Pre-built UF2
 - See `build` directory for a UF2 to copy to RPI-RP2 and you're off!
+  (Currently an older version that plays audio out the Pulse Out jacks)
 - Also availble at https://github.com/todbot/Hello_Computer/releases/
 
 The prebuilt UF2 contains the following wavetables:
@@ -39,8 +40,9 @@ The prebuilt UF2 contains the following wavetables:
 ## Setup if not using the pre-built UF2 file 
 
 1. Install MTM CircuitPython UF2 from https://github.com/todbot/circuitpython/releases
+   (needed for the `mcp4822` audio out module)
 
-2. Copy the [`mtm_computer.py` file](https://github.com/TomWhitwell/Hello_Computer/tree/main/Demonstrations%2BHelloWorlds/CircuitPython) to the CIRCUITPY drive.
+2. Copy the [`mtm_computer.py` file](https://github.com/TomWhitwell/Workshop_Computer/tree/main/Demonstrations%2BHelloWorlds/CircuitPython) to the CIRCUITPY drive.
 
 3. Copy the `code.py` and `wav` directory to CIRCUITPY drive.
 

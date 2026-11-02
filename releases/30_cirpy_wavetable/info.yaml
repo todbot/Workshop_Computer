@@ -6,14 +6,13 @@ Creator: Tod Kurt (@todbot)
 Version: 0.1
 Status: WIP
 date-created: 2024-11-30
-date-updated: 2024-11-30
+date-updated: 2026-11-01
 
 tags:
   - wavetable
   - oscillator
   - circuitpython
   - lfo
-  - pwm-audio
 
 demo-link: https://youtu.be/Y7sOgAC92XU
 
@@ -28,17 +27,17 @@ panel:
   inputs:
     - id: CVIn1
       name: Pitch CV
-      description: Pitch control input mapped to a MIDI-note range (approximate 1V/oct behavior)
+      description: Calibrated 1V/oct pitch, 0V = MIDI note 12, MIDI note 36 when unplugged
     - id: CVIn2
       name: Wavetable Position Mod
       description: Adds bipolar modulation to wavetable position
   outputs:
-    - id: PulseOut1
-      name: PWM Audio Out A
-      description: Pulse output configured as audio output stream
-    - id: PulseOut2
-      name: PWM Audio Out B
-      description: Pulse output configured as mirrored audio output stream
+    - id: AudioOut1
+      name: Audio Out
+      description: Wavetable oscillator audio
+    - id: AudioOut2
+      name: Audio Out
+      description: Same wavetable oscillator audio as Audio Out 1
     - id: CVOut1
       name: Wavetable Position CV
       description: Reflects current wavetable position value

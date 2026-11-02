@@ -11,8 +11,8 @@ print('hello')
 i = 0
 while True:
     print("led on", i)
-    computer.leds[i-1].duty_cycle = 0
-    computer.leds[i].duty_cycle = 65535  # LEDs are PWM-able, 65535 = max bright
+    computer.led_off(i-1)
+    computer.led_brightness(i, 65535)  # 0-65535
     i = (i+1) % len(computer.leds)
     time.sleep(0.2)
 

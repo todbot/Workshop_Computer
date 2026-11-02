@@ -3,18 +3,18 @@ beatfader_demo.py -- fade between different drum loops
 originally from
 https://github.com/todbot/circuitpython-tricks/blob/main/larger-tricks/beatfader.py
 
-Demonstrate how to play WAVs via the pulse outputs
+Demonstrate how to play WAVs out the audio outputs
 
 Functions:
 - main knob -- master "fader" between different playing WAV loops
 - X knob -- select "tilt" to favor main knob or CV 1 in as loop fader
 - switch -- up to mute
 - CV 1 in -- adds to main knob fader
-- CV 1 & 2 out -- PWM stereo audio out
+- Audio 1 & 2 out -- stereo audio out
 - LEDs -- reflects knobs and CV inputs
 
 To use:
-- Copy over the "mtp_computer.py" library 
+- Copy over the "mtm_computer.py" library 
 - Copy the "beatfader_wavs" directory at this URL to the CIRCUITPY drive
 https://github.com/todbot/circuitpython-tricks/tree/main/larger-tricks/beatfader_wavs
 - Or use your own loops, prefer 22050 kHz sample rate and up to around 10 or so
@@ -24,7 +24,7 @@ import os
 import time
 import math
 import audiocore
-from mtm_computer import Computer, map_range, gamma_correct
+from mtm_computer import Computer
 
 wav_dir = "/beatfader_wavs"
 
@@ -39,9 +39,9 @@ def load_wavs(wav_dir):
 
     # determine their sample rate and channel count & set comp audio to match
     with audiocore.WaveFile(wav_fnames[0]) as wav:
-        comp.pulse_outs_to_audio(sample_rate=wav.sample_rate,
-                                 voice_count=len(wav_fnames),
-                                 channel_count=wav.channel_count)
+        comp.audio_out(sample_rate=wav.sample_rate,
+                       voice_count=len(wav_fnames),
+                       channel_count=wav.channel_count)
 
     # start them playing, in sync, but quiet
     for i, fname in enumerate(wav_fnames):
@@ -61,23 +61,21 @@ fader_m  = 1/(num_wavs-1) # size of slice
 while True:
     comp.update()
     
-    if comp.switch > 60000:   # up position
+    if comp.switch_position == 2:   # up
         for voice in comp.mixer.voice:
             voice.level = 0
-    elif comp.switch < 1000:  # momentary down position
-        pass
-    else:
+    elif comp.switch_position == 1:  # middle
         tilt = comp.knob_x / 65535
         knob_pct = (1-tilt)*(comp.knob_main / 65535) + tilt*(comp.cv_1_in / 65535)
         for i,voice in enumerate(comp.mixer.voice):
             voice.level = min(max( 1 - (fader_n * (knob_pct - fader_m*i))**2, 0), 1)
 
     # LED0 reflects knob & cv position
-    comp.leds[0].duty_cycle = gamma_correct(comp.knob_main)
-    comp.leds[1].duty_cycle = gamma_correct(comp.knob_x)
-    comp.leds[2].duty_cycle = gamma_correct(comp.knob_y)
-    comp.leds[4].duty_cycle = gamma_correct(comp.cv_1_in)
-    comp.leds[5].duty_cycle = gamma_correct(comp.cv_2_in)
+    comp.led_brightness(0, comp.knob_main)
+    comp.led_brightness(1, comp.knob_x)
+    comp.led_brightness(2, comp.knob_y)
+    comp.led_brightness(4, comp.cv_1_in)
+    comp.led_brightness(5, comp.cv_2_in)
     
     # Print out the input state periodically
     if time.monotonic() - last_time > 0.2:

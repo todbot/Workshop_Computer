@@ -13,13 +13,13 @@
   - Z switch down -- selects next wavetable
   - Z switch up   -- toggles quantized notes or not on CV 1 Input
   
-  - CV 1 In     -- pitch: 0-5V should kinda track 1V/oct
+  - CV 1 In     -- pitch: 1V/oct, 0V = MIDI note 12
   - CV 2 In     -- adds to main knob to control wavetable position
 
   - CV 1 Out    -- reflects current wavetable position
   - CV 2 Out    -- reflects wavemod LFO
   
-  - Pulse 1 & 2 Out -- PWM audio out
+  - Audio 1 & 2 Out -- audio out
 
 """
 
@@ -29,10 +29,9 @@ import math
 import audiocore
 import synthio
 import ulab.numpy as np
-# installed from bundle, or "circup install adafruit_wave adafruit_debouncer"
-import adafruit_wave 
-from adafruit_debouncer import Debouncer
-from mtm_computer import Computer, map_range, gamma_correct
+# installed from bundle, or "circup install adafruit_wave"
+import adafruit_wave
+from mtm_computer import Computer, map_range
 
 wav_dir = "/wav"
 note_quant = True  # Set to True to track MIDI notes, else slides between notes
@@ -80,14 +79,9 @@ if len(wav_fnames) == 0:
 wav_fname = wav_fnames[0]
 
 comp = Computer()
-# set pulse outputs to be stereo output, but with a mono signal,
-# playing only a single source (our synthio synthesizer)
-comp.pulse_outs_to_audio(sample_rate=sample_rate,
-                         channel_count=1, voice_count=1)
-
-# todo: something like this should really be in Computer()
-z_button_up = Debouncer(lambda: comp.switch > 60000) # up position
-z_button_down = Debouncer(lambda: not comp.switch < 2000) # momentary down position
+comp.enable_normalisation_probe()  # to detect if CV 1 is plugged in
+# mono audio out, playing only a single source (our synthio synthesizer)
+comp.audio_out(sample_rate=sample_rate, channel_count=1, voice_count=1)
 
 # create a synthio synth, attach it to the mixer
 synth = synthio.Synthesizer(sample_rate=sample_rate)
@@ -105,6 +99,7 @@ lfo1 = synthio.LFO()  # defaults to triangle wave
 synth.blocks.append(lfo1)   # start free-running lfo running
 
 last_time = 0
+last_switch = comp.switch_position
 wav_fname_idx = 0
 wavemod_range = wavetable.num_waves
 
@@ -113,12 +108,11 @@ print("using wavetable:",wav_fname, ", num_waves=",wavetable.num_waves)
 while True:
     comp.update()
     
-    z_button_down.update()
-    z_button_up.update()
-    if z_button_up.rose:
+    switch = comp.switch_position
+    if switch == 2 and last_switch != 2:  # up
         note_quant = not note_quant
         print("Quantize CV 1 Input:", note_quant)
-    if z_button_down.fell:
+    if switch == 0 and last_switch != 0:  # momentary down
         # load up next wavetable
         wav_fname_idx = (wav_fname_idx + 1) % len(wav_fnames)
         wav_fname = wav_fnames[wav_fname_idx]
@@ -126,6 +120,7 @@ while True:
         note.waveform = wavetable.waveform
         wavemod_range = wavetable.num_waves
         print("using wavetable:",wav_fname, ", num_waves=",wavetable.num_waves)
+    last_switch = switch
 
     # map main knob to wave position
     wavepos = map_range(comp.knob_main, 0,65535, 0, wavemod_range)
@@ -137,13 +132,11 @@ while True:
     wavemod_rate = map_range(comp.knob_y, 0,65535, 0.01, 10)
     lfo1.rate = wavemod_rate
 
-    # CV1 In controls pitch, map it to MIDI note values
-    # note the magic values determined experimentally for 0-5V input
-    # detect if CV 1 has been plugged in
-    if comp.cv_1_in < 33000:  # a little above midpoint determined experimentally
+    # CV1 In controls pitch, 1V/oct using the card's input calibration
+    if comp.disconnected(Computer.CV1):
         note_val = 36
     else:
-        note_val = map_range(comp.cv_1_in, 33000, 59700, 12, 72)  # five octave range
+        note_val = 12 + comp.cv_in_millivolts(0) * 12 / 1000
     if note_quant:
         note_val = int(note_val)
     note.frequency = synthio.midi_to_hz(note_val)
@@ -162,17 +155,16 @@ while True:
     comp.cv_2_out = 32767 * (1+wavemod)  # makes it centered-ish around zero
 
     # LEDs reflects knob & cv position
-    comp.leds[0].duty_cycle = gamma_correct(32767 * (1+wavemod))
-    comp.leds[1].duty_cycle = gamma_correct(comp.knob_x)
-    comp.leds[2].duty_cycle = gamma_correct(comp.knob_y)
-    comp.leds[4].duty_cycle = gamma_correct(comp.cv_1_in)
-    comp.leds[5].duty_cycle = gamma_correct(comp.cv_2_in)
+    comp.led_brightness(0, 32767 * (1+wavemod))
+    comp.led_brightness(1, comp.knob_x)
+    comp.led_brightness(2, comp.knob_y)
+    comp.led_brightness(4, comp.cv_1_in)
+    comp.led_brightness(5, comp.cv_2_in)
 
 
     # Print out the input state periodically
     if time.monotonic() - last_time > 0.5:
         last_time = time.monotonic()
-        #print("analog:", comp.analog)  # can also see analog array
         print("knobs:", comp.knob_main, comp.knob_x, comp.knob_y,
               " cvin:", comp.cv_1_in, comp.cv_2_in,
               " quant:", note_quant,

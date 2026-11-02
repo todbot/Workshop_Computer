@@ -17,10 +17,6 @@ comp = Computer()
 
 last_time = 0
 
-def gamma_correct(x):
-    """simple and dumb brightness gamma-correction"""
-    return int((x*x)/65535)
-
 t = 0
 dt = 0.01
 
@@ -36,12 +32,12 @@ while True:
     t += dt
     
     # LEDs reflect state of knobs/CV
-    comp.leds[0].duty_cycle = gamma_correct(comp.knob_main)
-    comp.leds[1].duty_cycle = gamma_correct(comp.knob_x)
-    comp.leds[2].duty_cycle = gamma_correct(comp.knob_y)
-    comp.leds[3].duty_cycle = gamma_correct(comp.switch)
-    comp.leds[4].duty_cycle = gamma_correct(comp.cv_1_out)
-    comp.leds[5].duty_cycle = gamma_correct(comp.cv_2_out)
+    comp.led_brightness(0, comp.knob_main)
+    comp.led_brightness(1, comp.knob_x)
+    comp.led_brightness(2, comp.knob_y)
+    comp.led_brightness(3, comp.switch)
+    comp.led_brightness(4, comp.cv_1_out)
+    comp.led_brightness(5, comp.cv_2_out)
     
     # Print out the input state periodically
     if time.monotonic() - last_time > 0.2:
